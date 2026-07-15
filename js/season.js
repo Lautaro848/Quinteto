@@ -12,6 +12,8 @@ function showHome() {
   root.append(el("h1", null, "Quinteto"));
   root.append(el("p", { class: "sub" }, "La planilla digital que reemplaza al papel."));
 
+  const my = myTeam();
+
   /* partido en curso */
   const live = App.db.matches.find(x => x.status === "live");
   if (live) {
@@ -26,16 +28,43 @@ function showHome() {
   }
   const setup = App.db.matches.find(x => x.status === "setup");
 
-  root.append(el("button", {
-    class: "btn primary big", style: { marginBottom: "10px" },
-    onclick: () => {
-      if (setup) { App.matchId = setup.id; showSetup(); return; }
-      /* los equipos arrancan vacíos: el usuario los crea desde cero
-         (o carga un plantel guardado si él lo elige) */
-      newMatch();
-      showSetup();
+  /* mi equipo: se crea una sola vez y define el récord de temporada */
+  if (my) {
+    root.append(el("h2", null, "Mi equipo"));
+    root.append(el("div", { class: "card row" },
+      el("span", { class: "team-dot", style: { background: my.color, width: "14px", height: "14px" } }),
+      el("div", { class: "grow" },
+        el("b", null, (my.emoji ? my.emoji + " " : "") + my.name),
+        el("div", { class: "sub", style: { margin: 0 } }, my.players.length + " jugadores")),
+      el("button", { class: "btn small", onclick: showMyTeam }, "✎ Editar")
+    ));
+    root.append(el("button", {
+      class: "btn primary big", style: { marginBottom: "10px" },
+      onclick: () => {
+        if (setup) { App.matchId = setup.id; showSetup(); return; }
+        /* tu equipo se carga solo; en la configuración solo creás al rival */
+        const m = newMatch();
+        m.teams.A.name = my.name;
+        m.teams.A.color = my.color;
+        m.teams.A.emoji = my.emoji || "";
+        m.teams.A.savedTeamId = my.id;
+        m.teams.A.players = my.players.map(p => ({ ...p, id: uid() }));
+        saveDB();
+        showSetup();
+      }
+    }, setup ? "Seguir configurando partido ▶" : "＋ Nuevo partido vs..."));
+  } else {
+    root.append(el("div", { class: "card" },
+      el("p", { class: "sub" }, "Para arrancar, creá tu equipo una sola vez: nombre, color, escudo y plantel. Después, en cada partido nuevo se carga solo y únicamente cargás al rival."),
+      el("button", { class: "btn primary big", onclick: showMyTeam }, "🏀 Crear mi equipo")
+    ));
+    if (setup) {
+      root.append(el("button", {
+        class: "btn big", style: { marginBottom: "10px" },
+        onclick: () => { App.matchId = setup.id; showSetup(); }
+      }, "Seguir configurando partido ▶"));
     }
-  }, setup ? "Seguir configurando partido ▶" : "＋ Nuevo partido"));
+  }
 
   /* récord de temporada */
   const finished = App.db.matches.filter(x => x.status === "finished");

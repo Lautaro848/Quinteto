@@ -431,7 +431,6 @@ function finishMatch(m) {
   m.status = "finished";
   m.running = false;
   m.clockSec = 0;
-  persistMyTeam(m);
   saveDB();
   const s = computeStats(m);
   toast("Final: " + m.teams.A.name + " " + s.score.A + " - " + s.score.B + " " + m.teams.B.name, { hot: true, ms: 4000 });

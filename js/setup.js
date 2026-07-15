@@ -1,6 +1,166 @@
-/* ========== configuración del partido ========== */
+/* ========== mi equipo y configuración del partido ========== */
 "use strict";
 
+/* opciones de personalización */
+const PRESET_COLORS = ["#e8622c", "#3b82f6", "#38bdf8", "#22c55e", "#ef4444", "#a855f7", "#eab308", "#14b8a6", "#f472b6", "#f8fafc", "#111827"];
+const TEAM_EMOJIS = ["🏀", "🦁", "🐯", "🦅", "🐺", "🐂", "🦈", "⚡", "🔥", "⭐", "🛡️", "👑"];
+
+function escName(m, t) { return m.teams[t].name.trim() || (t === "A" ? "Tu equipo" : "El rival"); }
+
+function myTeam() {
+  return App.db.savedTeams.find(t => t.id === App.db.myTeamId) || null;
+}
+
+/* ---- campos de personalización (nombre, color, escudo) ----
+   Operan directo sobre el objeto team (de un partido o guardado). */
+function personalizationFields(team, opts) {
+  opts = opts || {};
+  const nodes = [];
+
+  nodes.push(el("label", { class: "fld" }, "Nombre"), el("input", {
+    type: "text", value: team.name, maxlength: 28,
+    placeholder: opts.namePlaceholder || "Nombre del equipo",
+    oninput: e => { team.name = e.target.value; saveDB(); }
+  }));
+
+  /* color identificatorio: muestras + color libre */
+  const swatches = el("div", { class: "swatches", style: { margin: "6px 0 10px" } });
+  const customIn = el("input", {
+    type: "color", value: team.color, title: "Otro color",
+    oninput: e => { team.color = e.target.value; saveDB(); renderSwatches(); }
+  });
+  const renderSwatches = () => {
+    swatches.innerHTML = "";
+    for (const c of PRESET_COLORS) {
+      swatches.append(el("button", {
+        class: "swatch" + (team.color.toLowerCase() === c.toLowerCase() ? " active" : ""),
+        style: { background: c }, title: c,
+        onclick: () => { team.color = c; customIn.value = c; saveDB(); renderSwatches(); }
+      }));
+    }
+    swatches.append(customIn);
+  };
+  renderSwatches();
+  nodes.push(el("label", { class: "fld", style: { marginTop: "10px" } }, "Color identificatorio"), swatches);
+
+  /* escudo / emoji (opcional) */
+  const emojiRow = el("div", { class: "emoji-row", style: { marginBottom: "12px" } });
+  const renderEmojis = () => {
+    emojiRow.innerHTML = "";
+    emojiRow.append(el("button", {
+      class: "emoji-btn" + (!team.emoji ? " active" : ""), title: "Sin escudo",
+      onclick: () => { team.emoji = ""; saveDB(); renderEmojis(); }
+    }, "–"));
+    for (const em of TEAM_EMOJIS) {
+      emojiRow.append(el("button", {
+        class: "emoji-btn" + (team.emoji === em ? " active" : ""),
+        onclick: () => { team.emoji = em; saveDB(); renderEmojis(); }
+      }, em));
+    }
+  };
+  renderEmojis();
+  nodes.push(el("label", { class: "fld" }, "Escudo (opcional, se ve en el marcador)"), emojiRow);
+
+  return nodes;
+}
+
+/* ---- editor de plantel genérico ----
+   opts.onDelete(p): limpieza extra al borrar (ej: sacarlo del quinteto)
+   opts.onChange(): re-render externo tras agregar/borrar               */
+function rosterEditor(team, opts) {
+  opts = opts || {};
+  const box = el("div");
+  const list = el("div");
+
+  const render = () => {
+    list.innerHTML = "";
+    for (const p of team.players) {
+      list.append(el("div", { class: "p-row" },
+        el("input", {
+          type: "text", value: p.number, inputmode: "numeric", placeholder: "N°",
+          oninput: e => { p.number = e.target.value.trim(); saveDB(); }
+        }),
+        el("input", {
+          type: "text", value: p.name, placeholder: "Nombre",
+          oninput: e => { p.name = e.target.value; saveDB(); }
+        }),
+        el("button", {
+          class: "btn small bad", title: "Borrar jugador",
+          onclick: () => {
+            confirmModal("Borrar jugador", "¿Borrar a #" + p.number + " " + p.name + "?", () => {
+              team.players = team.players.filter(x => x.id !== p.id);
+              if (opts.onDelete) opts.onDelete(p);
+              saveDB();
+              render();
+              if (opts.onChange) opts.onChange();
+            });
+          }
+        }, "✕")
+      ));
+    }
+  };
+  render();
+
+  const numIn = el("input", { type: "text", inputmode: "numeric", placeholder: "N°" });
+  const nameIn = el("input", { type: "text", placeholder: "Nombre del jugador" });
+  const add = () => {
+    if (!numIn.value.trim() && !nameIn.value.trim()) return;
+    if (team.players.some(p => p.number === numIn.value.trim())) { toast("⚠️ Ese número ya existe"); return; }
+    team.players.push(makePlayer(numIn.value || "?", nameIn.value || "Jugador"));
+    saveDB();
+    numIn.value = ""; nameIn.value = ""; numIn.focus();
+    render();
+    if (opts.onChange) opts.onChange();
+  };
+  nameIn.addEventListener("keydown", e => { if (e.key === "Enter") add(); });
+
+  box.append(list, el("div", { class: "p-row" },
+    numIn, nameIn, el("button", { class: "btn small ok", onclick: add }, "＋")
+  ));
+  return box;
+}
+
+/* ========== pantalla "Mi equipo" ==========
+   Se crea una sola vez; cada partido nuevo lo carga solo. */
+function showMyTeam() {
+  App.screen = "myteam";
+  $("#tabbar").classList.add("hidden");
+  $("#topbar-info").textContent = "Mi equipo";
+
+  let team = myTeam();
+  if (!team) {
+    team = { id: uid(), name: "", color: "#e8622c", emoji: "", players: [] };
+    App.db.savedTeams.push(team);
+    App.db.myTeamId = team.id;
+    saveDB();
+  }
+
+  const root = $("#screen");
+  root.innerHTML = "";
+  root.append(el("h1", null, "Mi equipo"));
+  root.append(el("p", { class: "sub" },
+    "Lo creás una sola vez. En cada partido nuevo se carga solo y únicamente tenés que cargar al rival. El récord de la temporada es de este equipo."));
+
+  const card = el("div", { class: "card" });
+  card.append(...personalizationFields(team, { namePlaceholder: "Nombre de tu equipo (ej: Atlético Naranja)" }));
+  card.append(el("label", { class: "fld" }, "Plantel (número y nombre)"));
+  card.append(rosterEditor(team, {}));
+  root.append(card);
+
+  root.append(el("button", {
+    class: "btn primary big",
+    onclick: () => {
+      if (!team.name.trim()) { toast("⚠️ Ponele un nombre a tu equipo"); return; }
+      if (team.players.length < 5) { toast("⚠️ Cargá al menos 5 jugadores"); return; }
+      saveDB();
+      toast("Mi equipo guardado ✔");
+      showHome();
+    }
+  }, "Guardar mi equipo ✔"));
+  root.append(el("button", { class: "btn ghost big", style: { marginTop: "8px" }, onclick: showHome }, "Volver"));
+}
+
+/* ========== configuración del partido ========== */
 function showSetup() {
   const m = curMatch();
   if (!m) return showHome();
@@ -11,9 +171,9 @@ function showSetup() {
   root.innerHTML = "";
 
   root.append(el("h1", null, "Nuevo partido"));
-  root.append(el("p", { class: "sub" }, "Cargá los equipos, elegí el lado de ataque y el quinteto inicial."));
+  root.append(el("p", { class: "sub" }, "Tu equipo ya está cargado: creá al rival, elegí el lado de ataque y los quintetos."));
 
-  root.append(teamCard(m, "A"), teamCard(m, "B"));
+  root.append(myTeamSetupCard(m), teamCard(m, "B"));
 
   /* ---- lado de ataque ---- */
   const sideCard = el("div", { class: "card" });
@@ -76,7 +236,6 @@ function showSetup() {
       if (errs.length) { toast("⚠️ " + errs[0]); return; }
       m.status = "live";
       m.clockSec = m.quarterLengthMin * 60;
-      persistMyTeam(m);
       saveDB();
       showGame();
       toast("¡Salto inicial! 🏀");
@@ -91,164 +250,47 @@ function showSetup() {
   refresh();
 }
 
-function escName(m, t) { return m.teams[t].name.trim() || (t === "A" ? "Tu equipo" : "El rival"); }
-
-/* opciones de personalización */
-const PRESET_COLORS = ["#e8622c", "#3b82f6", "#38bdf8", "#22c55e", "#ef4444", "#a855f7", "#eab308", "#14b8a6", "#f472b6", "#f8fafc", "#111827"];
-const TEAM_EMOJIS = ["🏀", "🦁", "🐯", "🦅", "🐺", "🐂", "🦈", "⚡", "🔥", "⭐", "🛡️", "👑"];
-
-/* guarda el plantel del equipo A para reutilizar */
-function persistMyTeam(m) {
-  const tA = m.teams.A;
-  const id = tA.savedTeamId || uid();
-  tA.savedTeamId = id;
-  App.db.myTeamId = id;
-  upsertSavedTeam({ id, name: tA.name, color: tA.color, emoji: tA.emoji || "", players: JSON.parse(JSON.stringify(tA.players)) });
-}
-
-/* ---- tarjeta de equipo ---- */
-function teamCard(m, t) {
-  const team = m.teams[t];
+/* ---- tarjeta de tu equipo (ya cargado desde "Mi equipo") ---- */
+function myTeamSetupCard(m) {
+  const team = m.teams.A;
   const card = el("div", { class: "card" });
-  card.append(el("h2", { style: { marginTop: 0 } }, t === "A" ? "Tu equipo" : "Rival"));
-
-  /* nombre (obligatorio, arranca vacío) */
-  const nameIn = el("input", {
-    type: "text", value: team.name,
-    placeholder: t === "A" ? "Nombre de tu equipo (ej: Atlético Naranja)" : "Nombre del rival",
-    maxlength: 28,
-    oninput: e => { team.name = e.target.value; saveDB(); }
-  });
-  card.append(el("label", { class: "fld" }, "Nombre"), nameIn);
-
-  /* color identificatorio: muestras + color libre */
-  const swatches = el("div", { class: "swatches", style: { margin: "10px 0" } });
-  const customIn = el("input", {
-    type: "color", value: team.color, title: "Otro color",
-    oninput: e => { team.color = e.target.value; saveDB(); renderSwatches(); }
-  });
-  const renderSwatches = () => {
-    swatches.innerHTML = "";
-    for (const c of PRESET_COLORS) {
-      swatches.append(el("button", {
-        class: "swatch" + (team.color.toLowerCase() === c.toLowerCase() ? " active" : ""),
-        style: { background: c }, title: c,
-        onclick: () => { team.color = c; customIn.value = c; saveDB(); renderSwatches(); }
-      }));
-    }
-    swatches.append(customIn);
-  };
-  renderSwatches();
-  card.append(el("label", { class: "fld" }, "Color identificatorio"), swatches);
-
-  /* escudo / emoji del equipo (opcional) */
-  const emojiRow = el("div", { class: "emoji-row", style: { marginBottom: "12px" } });
-  const renderEmojis = () => {
-    emojiRow.innerHTML = "";
-    emojiRow.append(el("button", {
-      class: "emoji-btn" + (!team.emoji ? " active" : ""), title: "Sin escudo",
-      onclick: () => { team.emoji = ""; saveDB(); renderEmojis(); }
-    }, "–"));
-    for (const em of TEAM_EMOJIS) {
-      emojiRow.append(el("button", {
-        class: "emoji-btn" + (team.emoji === em ? " active" : ""),
-        onclick: () => { team.emoji = em; saveDB(); renderEmojis(); }
-      }, em));
-    }
-  };
-  renderEmojis();
-  card.append(el("label", { class: "fld" }, "Escudo (opcional, se ve en el marcador)"), emojiRow);
-
-  /* cargar guardados / importar de partido anterior */
-  const loadRow = el("div", { class: "row wrap", style: { marginBottom: "10px" } });
-  if (App.db.savedTeams.length) {
-    loadRow.append(el("button", { class: "btn small", onclick: () => pickSavedTeam(m, t) }, "📂 Cargar plantel guardado"));
-  }
-  const pastRivals = App.db.matches.filter(x => x.id !== m.id && x.teams.B.players.length);
-  if (t === "B" && pastRivals.length) {
-    loadRow.append(el("button", { class: "btn small", onclick: () => pickPastRival(m) }, "⏪ Rival de partido anterior"));
-  }
-  if (loadRow.children.length) card.append(loadRow);
-
-  card.append(el("label", { class: "fld" }, "Plantel (número y nombre)"));
-  card.append(rosterEditor(m, t, () => showSetup()));
+  card.append(el("h2", { style: { marginTop: 0 } }, "Tu equipo"));
+  card.append(el("div", { class: "row", style: { marginBottom: "6px" } },
+    el("span", { class: "team-dot", style: { background: team.color, width: "14px", height: "14px" } }),
+    el("b", { class: "grow" }, (team.emoji ? team.emoji + " " : "") + (team.name || "Sin nombre")),
+    el("span", { class: "sub", style: { margin: 0 } }, team.players.length + " jugadores")
+  ));
+  card.append(el("p", { class: "sub", style: { marginBottom: "8px" } },
+    "Cargado desde \"Mi equipo\". Los ajustes de acá abajo valen solo para este partido (ej: sacar a un jugador que hoy no vino)."));
+  card.append(el("label", { class: "fld" }, "Plantel para este partido"));
+  card.append(rosterEditor(team, {
+    onDelete: p => { m.starters.A = m.starters.A.filter(x => x !== p.id); },
+    onChange: () => showSetup()
+  }));
   return card;
 }
 
-/* editor de plantel (también se usa con partido empezado) */
-function rosterEditor(m, t, onChange) {
+/* ---- tarjeta del rival (se crea desde cero) ---- */
+function teamCard(m, t) {
   const team = m.teams[t];
-  const box = el("div");
+  const card = el("div", { class: "card" });
+  card.append(el("h2", { style: { marginTop: 0 } }, "Rival"));
 
-  const list = el("div");
-  const render = () => {
-    list.innerHTML = "";
-    for (const p of team.players) {
-      list.append(el("div", { class: "p-row" },
-        el("input", {
-          type: "text", value: p.number, inputmode: "numeric", placeholder: "N°",
-          oninput: e => { p.number = e.target.value.trim(); saveDB(); }
-        }),
-        el("input", {
-          type: "text", value: p.name, placeholder: "Nombre",
-          oninput: e => { p.name = e.target.value; saveDB(); }
-        }),
-        el("button", {
-          class: "btn small bad", title: "Borrar jugador",
-          onclick: () => {
-            confirmModal("Borrar jugador", "¿Borrar a #" + p.number + " " + p.name + "?", () => {
-              team.players = team.players.filter(x => x.id !== p.id);
-              m.starters[t] = m.starters[t].filter(x => x !== p.id);
-              saveDB();
-              render();
-              if (onChange) onChange();
-            });
-          }
-        }, "✕")
-      ));
-    }
-  };
-  render();
+  card.append(...personalizationFields(team, { namePlaceholder: "Nombre del rival" }));
 
-  const numIn = el("input", { type: "text", inputmode: "numeric", placeholder: "N°" });
-  const nameIn = el("input", { type: "text", placeholder: "Nombre del jugador" });
-  const add = () => {
-    if (!numIn.value.trim() && !nameIn.value.trim()) return;
-    if (team.players.some(p => p.number === numIn.value.trim())) { toast("⚠️ Ese número ya existe"); return; }
-    team.players.push(makePlayer(numIn.value || "?", nameIn.value || "Jugador"));
-    saveDB();
-    numIn.value = ""; nameIn.value = ""; numIn.focus();
-    render();
-    if (onChange) onChange();
-  };
-  nameIn.addEventListener("keydown", e => { if (e.key === "Enter") add(); });
-
-  box.append(list, el("div", { class: "p-row" },
-    numIn, nameIn, el("button", { class: "btn small ok", onclick: add }, "＋")
-  ));
-  return box;
-}
-
-function pickSavedTeam(m, t) {
-  const body = el("div");
-  for (const st of App.db.savedTeams) {
-    body.append(el("div", { class: "list-item" },
-      el("span", { class: "team-dot", style: { background: st.color } }),
-      el("div", { class: "grow" }, el("b", null, st.name), el("div", { class: "sub", style: { margin: 0 } }, st.players.length + " jugadores")),
-      el("button", {
-        class: "btn small primary", onclick: () => {
-          m.teams[t].name = st.name;
-          m.teams[t].color = st.color;
-          m.teams[t].emoji = st.emoji || "";
-          m.teams[t].savedTeamId = st.id;
-          m.teams[t].players = st.players.map(p => ({ ...p, id: uid() }));
-          m.starters[t] = [];
-          saveDB(); closeModal(); showSetup();
-        }
-      }, "Usar")
-    ));
+  /* importar de partido anterior contra el mismo club */
+  const pastRivals = App.db.matches.filter(x => x.id !== m.id && x.teams.B.players.length);
+  if (pastRivals.length) {
+    card.append(el("div", { class: "row wrap", style: { marginBottom: "10px" } },
+      el("button", { class: "btn small", onclick: () => pickPastRival(m) }, "⏪ Rival de partido anterior")));
   }
-  openModal("Planteles guardados", body, [{ label: "Cerrar", kind: "ghost" }]);
+
+  card.append(el("label", { class: "fld" }, "Plantel (número y nombre)"));
+  card.append(rosterEditor(team, {
+    onDelete: p => { m.starters[t] = m.starters[t].filter(x => x !== p.id); },
+    onChange: () => showSetup()
+  }));
+  return card;
 }
 
 function pickPastRival(m) {
