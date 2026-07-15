@@ -30,16 +30,9 @@ function showHome() {
     class: "btn primary big", style: { marginBottom: "10px" },
     onclick: () => {
       if (setup) { App.matchId = setup.id; showSetup(); return; }
-      const m = newMatch();
-      /* precarga mi equipo guardado */
-      const my = App.db.savedTeams.find(t => t.id === App.db.myTeamId);
-      if (my) {
-        m.teams.A.name = my.name;
-        m.teams.A.color = my.color;
-        m.teams.A.savedTeamId = my.id;
-        m.teams.A.players = my.players.map(p => ({ ...p, id: uid() }));
-        saveDB();
-      }
+      /* los equipos arrancan vacíos: el usuario los crea desde cero
+         (o carga un plantel guardado si él lo elige) */
+      newMatch();
       showSetup();
     }
   }, setup ? "Seguir configurando partido ▶" : "＋ Nuevo partido"));

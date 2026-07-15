@@ -109,7 +109,9 @@ function renderScoreboardInto(sb, m) {
   sb.innerHTML = "";
 
   const teamBox = t => el("div", { class: "sb-team" },
-    el("div", { class: "name" }, el("span", { class: "team-dot", style: { background: m.teams[t].color } }), m.teams[t].name),
+    el("div", { class: "name" },
+      el("span", { class: "team-dot", style: { background: m.teams[t].color } }),
+      (m.teams[t].emoji ? m.teams[t].emoji + " " : "") + m.teams[t].name),
     el("div", { class: "pts" }, String(s.score[t]))
   );
 

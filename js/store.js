@@ -56,8 +56,8 @@ function newMatch() {
     otLengthMin: 5,
     attackRight: true,          // A ataca a la derecha en Q1/Q2
     teams: {
-      A: { name: "Nosotros", color: "#e8622c", savedTeamId: null, players: [] },
-      B: { name: "Rival", color: "#3b82f6", savedTeamId: null, players: [] }
+      A: { name: "", color: "#e8622c", emoji: "", savedTeamId: null, players: [] },
+      B: { name: "", color: "#3b82f6", emoji: "", savedTeamId: null, players: [] }
     },
     starters: { A: [], B: [] },
     quarter: 1,

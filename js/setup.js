@@ -36,7 +36,7 @@ function showSetup() {
   };
   sideCard.append(
     el("p", { class: "sub", style: { marginBottom: "8px" } },
-      "Tocá el aro al que ataca ", el("b", null, m.teams.A.name), " en el primer tiempo. El rival ataca el aro opuesto. Al entretiempo se invierte solo."),
+      "Tocá el aro al que ataca ", el("b", null, escName(m, "A")), " en el primer tiempo. El rival ataca el aro opuesto. Al entretiempo se invierte solo."),
     preview, dirTxt
   );
   root.append(sideCard);
@@ -69,8 +69,9 @@ function showSetup() {
     onclick: () => {
       const errs = [];
       for (const t of ["A", "B"]) {
-        if (m.teams[t].players.length < 5) errs.push(m.teams[t].name + ": cargá al menos 5 jugadores");
-        else if (m.starters[t].length !== 5) errs.push(m.teams[t].name + ": elegí el quinteto inicial (5)");
+        if (!m.teams[t].name.trim()) errs.push((t === "A" ? "Tu equipo" : "El rival") + ": ponele un nombre");
+        else if (m.teams[t].players.length < 5) errs.push(escName(m, t) + ": cargá al menos 5 jugadores");
+        else if (m.starters[t].length !== 5) errs.push(escName(m, t) + ": elegí el quinteto inicial (5)");
       }
       if (errs.length) { toast("⚠️ " + errs[0]); return; }
       m.status = "live";
@@ -90,7 +91,11 @@ function showSetup() {
   refresh();
 }
 
-function escName(m, t) { return m.teams[t].name; }
+function escName(m, t) { return m.teams[t].name.trim() || (t === "A" ? "Tu equipo" : "El rival"); }
+
+/* opciones de personalización */
+const PRESET_COLORS = ["#e8622c", "#3b82f6", "#38bdf8", "#22c55e", "#ef4444", "#a855f7", "#eab308", "#14b8a6", "#f472b6", "#f8fafc", "#111827"];
+const TEAM_EMOJIS = ["🏀", "🦁", "🐯", "🦅", "🐺", "🐂", "🦈", "⚡", "🔥", "⭐", "🛡️", "👑"];
 
 /* guarda el plantel del equipo A para reutilizar */
 function persistMyTeam(m) {
@@ -98,7 +103,7 @@ function persistMyTeam(m) {
   const id = tA.savedTeamId || uid();
   tA.savedTeamId = id;
   App.db.myTeamId = id;
-  upsertSavedTeam({ id, name: tA.name, color: tA.color, players: JSON.parse(JSON.stringify(tA.players)) });
+  upsertSavedTeam({ id, name: tA.name, color: tA.color, emoji: tA.emoji || "", players: JSON.parse(JSON.stringify(tA.players)) });
 }
 
 /* ---- tarjeta de equipo ---- */
@@ -107,27 +112,65 @@ function teamCard(m, t) {
   const card = el("div", { class: "card" });
   card.append(el("h2", { style: { marginTop: 0 } }, t === "A" ? "Tu equipo" : "Rival"));
 
+  /* nombre (obligatorio, arranca vacío) */
   const nameIn = el("input", {
-    type: "text", value: team.name, placeholder: "Nombre del equipo",
+    type: "text", value: team.name,
+    placeholder: t === "A" ? "Nombre de tu equipo (ej: Atlético Naranja)" : "Nombre del rival",
+    maxlength: 28,
     oninput: e => { team.name = e.target.value; saveDB(); }
   });
-  const colorIn = el("input", {
-    type: "color", value: team.color,
-    oninput: e => { team.color = e.target.value; saveDB(); }
+  card.append(el("label", { class: "fld" }, "Nombre"), nameIn);
+
+  /* color identificatorio: muestras + color libre */
+  const swatches = el("div", { class: "swatches", style: { margin: "10px 0" } });
+  const customIn = el("input", {
+    type: "color", value: team.color, title: "Otro color",
+    oninput: e => { team.color = e.target.value; saveDB(); renderSwatches(); }
   });
-  card.append(el("div", { class: "row", style: { marginBottom: "10px" } }, el("div", { class: "grow" }, nameIn), colorIn));
+  const renderSwatches = () => {
+    swatches.innerHTML = "";
+    for (const c of PRESET_COLORS) {
+      swatches.append(el("button", {
+        class: "swatch" + (team.color.toLowerCase() === c.toLowerCase() ? " active" : ""),
+        style: { background: c }, title: c,
+        onclick: () => { team.color = c; customIn.value = c; saveDB(); renderSwatches(); }
+      }));
+    }
+    swatches.append(customIn);
+  };
+  renderSwatches();
+  card.append(el("label", { class: "fld" }, "Color identificatorio"), swatches);
+
+  /* escudo / emoji del equipo (opcional) */
+  const emojiRow = el("div", { class: "emoji-row", style: { marginBottom: "12px" } });
+  const renderEmojis = () => {
+    emojiRow.innerHTML = "";
+    emojiRow.append(el("button", {
+      class: "emoji-btn" + (!team.emoji ? " active" : ""), title: "Sin escudo",
+      onclick: () => { team.emoji = ""; saveDB(); renderEmojis(); }
+    }, "–"));
+    for (const em of TEAM_EMOJIS) {
+      emojiRow.append(el("button", {
+        class: "emoji-btn" + (team.emoji === em ? " active" : ""),
+        onclick: () => { team.emoji = em; saveDB(); renderEmojis(); }
+      }, em));
+    }
+  };
+  renderEmojis();
+  card.append(el("label", { class: "fld" }, "Escudo (opcional, se ve en el marcador)"), emojiRow);
 
   /* cargar guardados / importar de partido anterior */
   const loadRow = el("div", { class: "row wrap", style: { marginBottom: "10px" } });
   if (App.db.savedTeams.length) {
-    loadRow.append(el("button", { class: "btn small", onclick: () => pickSavedTeam(m, t) }, "📂 Plantel guardado"));
+    loadRow.append(el("button", { class: "btn small", onclick: () => pickSavedTeam(m, t) }, "📂 Cargar plantel guardado"));
   }
   const pastRivals = App.db.matches.filter(x => x.id !== m.id && x.teams.B.players.length);
   if (t === "B" && pastRivals.length) {
-    loadRow.append(el("button", { class: "btn small", onclick: () => pickPastRival(m) }, "⏪ De partido anterior"));
+    loadRow.append(el("button", { class: "btn small", onclick: () => pickPastRival(m) }, "⏪ Rival de partido anterior"));
   }
   if (loadRow.children.length) card.append(loadRow);
 
+  card.append(el("label", { class: "fld" }, "Plantel (número y nombre)"));
   card.append(rosterEditor(m, t, () => showSetup()));
   return card;
 }
@@ -196,6 +239,7 @@ function pickSavedTeam(m, t) {
         class: "btn small primary", onclick: () => {
           m.teams[t].name = st.name;
           m.teams[t].color = st.color;
+          m.teams[t].emoji = st.emoji || "";
           m.teams[t].savedTeamId = st.id;
           m.teams[t].players = st.players.map(p => ({ ...p, id: uid() }));
           m.starters[t] = [];
@@ -223,6 +267,7 @@ function pickPastRival(m) {
         class: "btn small primary", onclick: () => {
           m.teams.B.name = past.teams.B.name;
           m.teams.B.color = past.teams.B.color;
+          m.teams.B.emoji = past.teams.B.emoji || "";
           m.teams.B.players = past.teams.B.players.map(p => ({ ...p, id: uid() }));
           m.starters.B = [];
           saveDB(); closeModal(); showSetup();
@@ -242,7 +287,7 @@ function startersCard(m, t) {
   const grid = el("div", { class: "starter-grid" });
 
   const render = () => {
-    title.textContent = "Quinteto inicial · " + team.name + " (" + count() + "/5)";
+    title.textContent = "Quinteto inicial · " + escName(m, t) + " (" + count() + "/5)";
     grid.innerHTML = "";
     for (const p of team.players) {
       const sel = m.starters[t].includes(p.id);
