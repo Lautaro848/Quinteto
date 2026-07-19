@@ -13,10 +13,11 @@ function renderReportScreen() {
 
   /* marcador */
   const score = el("div", { class: "card" });
+  const deco = t => (m.teams[t].emoji ? m.teams[t].emoji + " " : "") + m.teams[t].name;
   score.append(el("div", { class: "hero-score" },
-    el("span", { style: { color: m.teams.A.color } }, m.teams.A.name + " "),
+    el("span", { style: { color: m.teams.A.color } }, deco("A") + " "),
     s.score.A + " – " + s.score.B,
-    el("span", { style: { color: m.teams.B.color } }, " " + m.teams.B.name)
+    el("span", { style: { color: m.teams.B.color } }, " " + deco("B"))
   ));
   const pt = el("table");
   const h = el("tr", null, el("th", null, ""));
@@ -136,10 +137,11 @@ function downloadReportImage(m) {
   /* marcador */
   ctx.textAlign = "center";
   ctx.font = "bold 46px system-ui, sans-serif";
+  const decoName = t => (m.teams[t].emoji ? m.teams[t].emoji + " " : "") + m.teams[t].name;
   ctx.fillStyle = m.teams.A.color;
-  ctx.fillText(fitText(ctx, m.teams.A.name, 420), W * 0.27, 170);
+  ctx.fillText(fitText(ctx, decoName("A"), 420), W * 0.27, 170);
   ctx.fillStyle = m.teams.B.color;
-  ctx.fillText(fitText(ctx, m.teams.B.name, 420), W * 0.73, 170);
+  ctx.fillText(fitText(ctx, decoName("B"), 420), W * 0.73, 170);
   ctx.fillStyle = "#eef1f6";
   ctx.font = "bold 120px system-ui, sans-serif";
   ctx.fillText(s.score.A + " - " + s.score.B, W / 2, 300);

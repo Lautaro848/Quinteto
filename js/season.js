@@ -4,6 +4,7 @@
 function showHome() {
   App.screen = "home";
   App.matchId = null;
+  App.trainingId = null;
   $("#tabbar").classList.add("hidden");
   $("#topbar-info").textContent = "";
   const root = $("#screen");
@@ -11,6 +12,8 @@ function showHome() {
 
   root.append(el("h1", null, "Quinteto"));
   root.append(el("p", { class: "sub" }, "La planilla digital que reemplaza al papel."));
+
+  const my = myTeam();
 
   /* partido en curso */
   const live = App.db.matches.find(x => x.status === "live");
@@ -26,23 +29,55 @@ function showHome() {
   }
   const setup = App.db.matches.find(x => x.status === "setup");
 
-  root.append(el("button", {
-    class: "btn primary big", style: { marginBottom: "10px" },
-    onclick: () => {
-      if (setup) { App.matchId = setup.id; showSetup(); return; }
-      const m = newMatch();
-      /* precarga mi equipo guardado */
-      const my = App.db.savedTeams.find(t => t.id === App.db.myTeamId);
-      if (my) {
+  /* mi equipo: se crea una sola vez y define el récord de temporada */
+  if (my) {
+    root.append(el("h2", null, "Mi equipo"));
+    root.append(el("div", { class: "card row" },
+      el("span", { class: "team-dot", style: { background: my.color, width: "14px", height: "14px" } }),
+      el("div", { class: "grow" },
+        el("b", null, (my.emoji ? my.emoji + " " : "") + my.name),
+        el("div", { class: "sub", style: { margin: 0 } }, my.players.length + " jugadores")),
+      el("button", { class: "btn small", onclick: showMyTeam }, "✎ Editar")
+    ));
+    root.append(el("button", {
+      class: "btn primary big", style: { marginBottom: "10px" },
+      onclick: () => {
+        if (setup) { App.matchId = setup.id; showSetup(); return; }
+        /* tu equipo se carga solo; en la configuración solo creás al rival */
+        const m = newMatch();
         m.teams.A.name = my.name;
         m.teams.A.color = my.color;
+        m.teams.A.emoji = my.emoji || "";
         m.teams.A.savedTeamId = my.id;
         m.teams.A.players = my.players.map(p => ({ ...p, id: uid() }));
         saveDB();
+        showSetup();
       }
-      showSetup();
+    }, setup ? "Seguir configurando partido ▶" : "＋ Nuevo partido vs..."));
+
+    /* modo entrenamiento: misma cancha y estadísticas, sin rival */
+    const liveTraining = App.db.trainings.find(x => x.status === "live");
+    root.append(el("button", {
+      class: "btn big", style: { marginBottom: "10px" },
+      onclick: () => {
+        if (liveTraining) { showTraining(liveTraining.id); return; }
+        const s = newTraining();
+        showTraining(s.id);
+        toast("Entrenamiento iniciado 🏋️ Creá ejercicios para etiquetar las acciones");
+      }
+    }, liveTraining ? "Continuar entrenamiento 🏋️ ▶" : "🏋️ Nuevo entrenamiento"));
+  } else {
+    root.append(el("div", { class: "card" },
+      el("p", { class: "sub" }, "Para arrancar, creá tu equipo una sola vez: nombre, color, escudo y plantel. Después, en cada partido nuevo se carga solo y únicamente cargás al rival."),
+      el("button", { class: "btn primary big", onclick: showMyTeam }, "🏀 Crear mi equipo")
+    ));
+    if (setup) {
+      root.append(el("button", {
+        class: "btn big", style: { marginBottom: "10px" },
+        onclick: () => { App.matchId = setup.id; showSetup(); }
+      }, "Seguir configurando partido ▶"));
     }
-  }, setup ? "Seguir configurando partido ▶" : "＋ Nuevo partido"));
+  }
 
   /* récord de temporada */
   const finished = App.db.matches.filter(x => x.status === "finished");
@@ -84,6 +119,30 @@ function showHome() {
       ));
     }
     root.append(card);
+  }
+
+  /* entrenamientos */
+  if (App.db.trainings.length) {
+    root.append(el("h2", null, "Entrenamientos"));
+    const tcard = el("div", { class: "card" });
+    for (const s of [...App.db.trainings].reverse()) {
+      const shots = s.events.filter(e => e.type === "shot");
+      const made = shots.filter(e => e.made).length;
+      tcard.append(el("div", { class: "list-item" },
+        el("b", null, s.status === "live" ? "🔴" : "🏋️"),
+        el("div", { class: "grow", style: { cursor: "pointer" }, onclick: () => showTraining(s.id) },
+          el("b", null, fmtDate(s.date) + " · " + fmtClock(s.elapsedSec)),
+          el("div", { class: "sub", style: { margin: 0 } },
+            shots.length + " tiros (" + fmtPct(made, shots.length) + ")" +
+            (s.drills.length ? " · " + s.drills.length + " ejercicios" : "") +
+            (s.status === "live" ? " · En curso" : ""))),
+        el("button", {
+          class: "btn small bad",
+          onclick: () => confirmModal("Borrar entrenamiento", "¿Borrar esta sesión del historial?", () => { deleteTraining(s.id); showHome(); }, "Borrar")
+        }, "✕")
+      ));
+    }
+    root.append(tcard);
   }
 
   /* datos */

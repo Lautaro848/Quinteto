@@ -68,7 +68,21 @@ export/import de backup en JSON desde la pantalla de inicio.
 - Por equipo: puntos, % de campo, rebotes, faltas — con pestañas para
   alternar y tabla comparativa.
 
-### 6. Post-partido y temporada
+### 6. Modo entrenamiento
+- Sesiones de práctica con tu equipo, con **la misma cancha completa y el
+  mismo sistema de estadísticas** que un partido, sin rival ni cuartos.
+- Los tiros se clasifican contra el **aro más cercano** (en la práctica se
+  usan los dos aros), con la misma detección automática de 2P/3P.
+- **Ejercicios**: creá los ejercicios que quieras hacerles ("Tiro de 3",
+  "Contraataque", "Libres"…); cada acción queda etiquetada con el ejercicio
+  activo y podés filtrar estadísticas, shot chart y mapa de calor por
+  ejercicio.
+- Cronómetro de sesión, acciones rápidas, línea de tiempo editable, resumen
+  con efectividad por ejercicio y por jugador, y resumen compartible.
+- Historial de entrenamientos en el inicio con tiros y porcentaje de cada
+  sesión.
+
+### 7. Post-partido y temporada
 - **Reporte en un toque**: imagen PNG (marcador, parciales, shot chart y
   destacados) lista para el grupo de WhatsApp, PDF vía imprimir y resumen de
   texto para compartir.
@@ -89,6 +103,7 @@ export/import de backup en JSON desde la pantalla de inicio.
 | `js/analysis.js` | Boxscore, shot chart, mapa de calor, línea de tiempo |
 | `js/report.js` | Reporte, imagen para compartir, PDF |
 | `js/season.js` | Inicio, historial y promedios de temporada |
+| `js/training.js` | Modo entrenamiento: sesiones, ejercicios y sus estadísticas |
 
 El diseño es *event-sourced*: cada acción del partido es un evento inmutable
 con equipo, jugador, cuarto y reloj; marcador, minutos, +/- y quintetos se

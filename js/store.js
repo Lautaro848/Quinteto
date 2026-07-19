@@ -11,7 +11,7 @@ const App = {
 };
 
 function defaultDB() {
-  return { savedTeams: [], matches: [], myTeamId: null };
+  return { savedTeams: [], matches: [], trainings: [], myTeamId: null };
 }
 
 function loadDB() {
@@ -24,6 +24,7 @@ function loadDB() {
   }
   if (!App.db.savedTeams) App.db.savedTeams = [];
   if (!App.db.matches) App.db.matches = [];
+  if (!App.db.trainings) App.db.trainings = [];
 }
 
 function saveDB() {
@@ -56,8 +57,8 @@ function newMatch() {
     otLengthMin: 5,
     attackRight: true,          // A ataca a la derecha en Q1/Q2
     teams: {
-      A: { name: "Nosotros", color: "#e8622c", savedTeamId: null, players: [] },
-      B: { name: "Rival", color: "#3b82f6", savedTeamId: null, players: [] }
+      A: { name: "", color: "#e8622c", emoji: "", savedTeamId: null, players: [] },
+      B: { name: "", color: "#3b82f6", emoji: "", savedTeamId: null, players: [] }
     },
     starters: { A: [], B: [] },
     quarter: 1,
@@ -159,6 +160,7 @@ function importAll(file) {
       if (!data || !Array.isArray(data.matches)) throw new Error("formato inválido");
       App.db = data;
       if (!App.db.savedTeams) App.db.savedTeams = [];
+      if (!App.db.trainings) App.db.trainings = [];
       saveDB();
       App.matchId = null;
       showHome();

@@ -44,6 +44,7 @@ function showGame() {
   const m = curMatch();
   if (!m) return showHome();
   if (m.status === "setup") return showSetup();
+  App.trainingId = null;
   App.screen = "game";
   App.ui.sel = null;
   App.ui.subIn = null;
@@ -56,6 +57,7 @@ function showGame() {
 function setTab(tab) {
   App.tab = tab;
   $$("#tabbar button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  if (App.trainingId && curTraining()) { renderTrainingTab(tab); return; }
   const m = curMatch();
   $("#topbar-info").textContent = m ? (m.teams.A.name + " vs " + m.teams.B.name) : "";
   if (tab === "game") renderGameScreen();
@@ -109,7 +111,9 @@ function renderScoreboardInto(sb, m) {
   sb.innerHTML = "";
 
   const teamBox = t => el("div", { class: "sb-team" },
-    el("div", { class: "name" }, el("span", { class: "team-dot", style: { background: m.teams[t].color } }), m.teams[t].name),
+    el("div", { class: "name" },
+      el("span", { class: "team-dot", style: { background: m.teams[t].color } }),
+      (m.teams[t].emoji ? m.teams[t].emoji + " " : "") + m.teams[t].name),
     el("div", { class: "pts" }, String(s.score[t]))
   );
 
@@ -429,7 +433,6 @@ function finishMatch(m) {
   m.status = "finished";
   m.running = false;
   m.clockSec = 0;
-  persistMyTeam(m);
   saveDB();
   const s = computeStats(m);
   toast("Final: " + m.teams.A.name + " " + s.score.A + " - " + s.score.B + " " + m.teams.B.name, { hot: true, ms: 4000 });
