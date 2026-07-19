@@ -44,6 +44,7 @@ function showGame() {
   const m = curMatch();
   if (!m) return showHome();
   if (m.status === "setup") return showSetup();
+  App.trainingId = null;
   App.screen = "game";
   App.ui.sel = null;
   App.ui.subIn = null;
@@ -56,6 +57,7 @@ function showGame() {
 function setTab(tab) {
   App.tab = tab;
   $$("#tabbar button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  if (App.trainingId && curTraining()) { renderTrainingTab(tab); return; }
   const m = curMatch();
   $("#topbar-info").textContent = m ? (m.teams.A.name + " vs " + m.teams.B.name) : "";
   if (tab === "game") renderGameScreen();

@@ -4,6 +4,7 @@
 function showHome() {
   App.screen = "home";
   App.matchId = null;
+  App.trainingId = null;
   $("#tabbar").classList.add("hidden");
   $("#topbar-info").textContent = "";
   const root = $("#screen");
@@ -53,6 +54,18 @@ function showHome() {
         showSetup();
       }
     }, setup ? "Seguir configurando partido ▶" : "＋ Nuevo partido vs..."));
+
+    /* modo entrenamiento: misma cancha y estadísticas, sin rival */
+    const liveTraining = App.db.trainings.find(x => x.status === "live");
+    root.append(el("button", {
+      class: "btn big", style: { marginBottom: "10px" },
+      onclick: () => {
+        if (liveTraining) { showTraining(liveTraining.id); return; }
+        const s = newTraining();
+        showTraining(s.id);
+        toast("Entrenamiento iniciado 🏋️ Creá ejercicios para etiquetar las acciones");
+      }
+    }, liveTraining ? "Continuar entrenamiento 🏋️ ▶" : "🏋️ Nuevo entrenamiento"));
   } else {
     root.append(el("div", { class: "card" },
       el("p", { class: "sub" }, "Para arrancar, creá tu equipo una sola vez: nombre, color, escudo y plantel. Después, en cada partido nuevo se carga solo y únicamente cargás al rival."),
@@ -106,6 +119,30 @@ function showHome() {
       ));
     }
     root.append(card);
+  }
+
+  /* entrenamientos */
+  if (App.db.trainings.length) {
+    root.append(el("h2", null, "Entrenamientos"));
+    const tcard = el("div", { class: "card" });
+    for (const s of [...App.db.trainings].reverse()) {
+      const shots = s.events.filter(e => e.type === "shot");
+      const made = shots.filter(e => e.made).length;
+      tcard.append(el("div", { class: "list-item" },
+        el("b", null, s.status === "live" ? "🔴" : "🏋️"),
+        el("div", { class: "grow", style: { cursor: "pointer" }, onclick: () => showTraining(s.id) },
+          el("b", null, fmtDate(s.date) + " · " + fmtClock(s.elapsedSec)),
+          el("div", { class: "sub", style: { margin: 0 } },
+            shots.length + " tiros (" + fmtPct(made, shots.length) + ")" +
+            (s.drills.length ? " · " + s.drills.length + " ejercicios" : "") +
+            (s.status === "live" ? " · En curso" : ""))),
+        el("button", {
+          class: "btn small bad",
+          onclick: () => confirmModal("Borrar entrenamiento", "¿Borrar esta sesión del historial?", () => { deleteTraining(s.id); showHome(); }, "Borrar")
+        }, "✕")
+      ));
+    }
+    root.append(tcard);
   }
 
   /* datos */
