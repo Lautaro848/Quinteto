@@ -41,7 +41,7 @@ function showHome() {
     root.append(el("div", { class: "card row" },
       el("span", { class: "team-dot", style: { background: my.color, width: "14px", height: "14px" } }),
       el("div", { class: "grow" },
-        el("b", null, (my.emoji ? my.emoji + " " : "") + my.name),
+        el("b", null, teamMark(my, 24), " ", my.name),
         el("div", { class: "sub", style: { margin: 0 } }, my.players.length + " jugadores" +
           (App.db.savedTeams.length > 1 ? " · " + App.db.savedTeams.length + " categorías" : ""))),
       el("button", { class: "btn small", onclick: () => showMyTeam() }, "✎"),
@@ -60,6 +60,7 @@ function showHome() {
         m.teams.A.name = my.name;
         m.teams.A.color = my.color;
         m.teams.A.emoji = my.emoji || "";
+        m.teams.A.logo = my.logo || null;
         m.teams.A.savedTeamId = my.id;
         m.teams.A.players = my.players.map(p => ({ ...p, id: uid() }));
         saveDB();
@@ -201,7 +202,7 @@ function pickCategoryModal() {
     body.append(el("div", { class: "list-item" },
       el("span", { class: "team-dot", style: { background: t.color } }),
       el("div", { class: "grow" },
-        el("b", null, (t.emoji ? t.emoji + " " : "") + (t.name || "Sin nombre")),
+        el("b", null, teamMark(t, 20), " ", t.name || "Sin nombre"),
         el("div", { class: "sub", style: { margin: 0 } }, t.players.length + " jugadores" + (active ? " · Activa" : ""))),
       active
         ? el("b", { style: { color: "var(--ok)" } }, "✓")

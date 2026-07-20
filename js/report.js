@@ -13,11 +13,10 @@ function renderReportScreen() {
 
   /* marcador */
   const score = el("div", { class: "card" });
-  const deco = t => (m.teams[t].emoji ? m.teams[t].emoji + " " : "") + m.teams[t].name;
   score.append(el("div", { class: "hero-score" },
-    el("span", { style: { color: m.teams.A.color } }, deco("A") + " "),
+    el("span", { style: { color: m.teams.A.color } }, teamMark(m.teams.A, 30), " " + m.teams.A.name + " "),
     s.score.A + " – " + s.score.B,
-    el("span", { style: { color: m.teams.B.color } }, " " + deco("B"))
+    el("span", { style: { color: m.teams.B.color } }, " " + m.teams.B.name + " ", teamMark(m.teams.B, 30))
   ));
   const pt = el("table");
   const h = el("tr", null, el("th", null, ""));
@@ -137,14 +136,31 @@ function shareSummary(m) {
 }
 
 /* ---- imagen del reporte (canvas, lista para compartir) ---- */
-function downloadReportImage(m) {
+async function downloadReportImage(m) {
   const s = computeStats(m);
   const W = 1080, H = 1400;
   const cv = el("canvas", { width: W, height: H });
   const ctx = cv.getContext("2d");
 
+  const [logoA, logoB] = await Promise.all([loadImg(m.teams.A.logo), loadImg(m.teams.B.logo)]);
+
   ctx.fillStyle = "#12151c";
   ctx.fillRect(0, 0, W, H);
+
+  /* logos de los equipos (recorte circular) */
+  const drawLogo = (img, cx) => {
+    if (!img) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, 116, 34, 0, Math.PI * 2);
+    ctx.fillStyle = "#fff";
+    ctx.fill();
+    ctx.clip();
+    ctx.drawImage(img, cx - 34, 82, 68, 68);
+    ctx.restore();
+  };
+  drawLogo(logoA, W * 0.27);
+  drawLogo(logoB, W * 0.73);
 
   /* header */
   ctx.fillStyle = "#e8622c";

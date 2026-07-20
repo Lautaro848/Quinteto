@@ -7,6 +7,18 @@ const TEAM_EMOJIS = ["🏀", "🦁", "🐯", "🦅", "🐺", "🐂", "🦈", "�
 
 function escName(m, t) { return m.teams[t].name.trim() || (t === "A" ? "Tu equipo" : "El rival"); }
 
+/* insignia del equipo: foto del logo si hay, si no el emoji */
+function teamMark(team, sizePx) {
+  if (team.logo) {
+    return el("img", {
+      class: "team-logo", src: team.logo, alt: "",
+      style: { width: sizePx + "px", height: sizePx + "px" }
+    });
+  }
+  if (team.emoji) return el("span", null, team.emoji);
+  return null;
+}
+
 function myTeam() {
   return App.db.savedTeams.find(t => t.id === App.db.myTeamId) || null;
 }
@@ -43,7 +55,39 @@ function personalizationFields(team, opts) {
   renderSwatches();
   nodes.push(el("label", { class: "fld", style: { marginTop: "10px" } }, "Color identificatorio"), swatches);
 
-  /* escudo / emoji (opcional) */
+  /* escudo: foto del logo (manda) o emoji (alternativa) */
+  const logoRow = el("div", { class: "row", style: { marginBottom: "10px" } });
+  const fileIn = el("input", { type: "file", accept: "image/*", style: { display: "none" } });
+  fileIn.addEventListener("change", () => {
+    const f = fileIn.files[0];
+    if (!f) return;
+    resizeImageFile(f, 128, dataUrl => {
+      if (!dataUrl) { toast("⚠️ No pude leer esa imagen"); return; }
+      team.logo = dataUrl;
+      saveDB();
+      renderLogo();
+      toast("Logo cargado 🖼️");
+    });
+    fileIn.value = "";
+  });
+  const renderLogo = () => {
+    logoRow.innerHTML = "";
+    logoRow.append(fileIn);
+    if (team.logo) {
+      logoRow.append(
+        el("img", { class: "team-logo", src: team.logo, style: { width: "44px", height: "44px" } }),
+        el("button", { class: "btn small", onclick: () => fileIn.click() }, "📷 Cambiar foto"),
+        el("button", {
+          class: "btn small bad", title: "Quitar la foto",
+          onclick: () => { team.logo = null; saveDB(); renderLogo(); }
+        }, "✕")
+      );
+    } else {
+      logoRow.append(el("button", { class: "btn small", onclick: () => fileIn.click() }, "📷 Subir foto del logo"));
+    }
+  };
+  renderLogo();
+
   const emojiRow = el("div", { class: "emoji-row", style: { marginBottom: "12px" } });
   const renderEmojis = () => {
     emojiRow.innerHTML = "";
@@ -59,7 +103,10 @@ function personalizationFields(team, opts) {
     }
   };
   renderEmojis();
-  nodes.push(el("label", { class: "fld" }, "Escudo (opcional, se ve en el marcador)"), emojiRow);
+  nodes.push(
+    el("label", { class: "fld" }, "Escudo (se ve en el marcador): foto del logo…"), logoRow,
+    el("label", { class: "fld" }, "…o un emoji"), emojiRow
+  );
 
   return nodes;
 }
@@ -257,7 +304,7 @@ function myTeamSetupCard(m) {
   card.append(el("h2", { style: { marginTop: 0 } }, "Tu equipo"));
   card.append(el("div", { class: "row", style: { marginBottom: "6px" } },
     el("span", { class: "team-dot", style: { background: team.color, width: "14px", height: "14px" } }),
-    el("b", { class: "grow" }, (team.emoji ? team.emoji + " " : "") + (team.name || "Sin nombre")),
+    el("b", { class: "grow" }, teamMark(team, 22), " ", team.name || "Sin nombre"),
     el("span", { class: "sub", style: { margin: 0 } }, team.players.length + " jugadores")
   ));
   card.append(el("p", { class: "sub", style: { marginBottom: "8px" } },
@@ -310,6 +357,7 @@ function pickPastRival(m) {
           m.teams.B.name = past.teams.B.name;
           m.teams.B.color = past.teams.B.color;
           m.teams.B.emoji = past.teams.B.emoji || "";
+          m.teams.B.logo = past.teams.B.logo || null;
           m.teams.B.players = past.teams.B.players.map(p => ({ ...p, id: uid() }));
           m.starters.B = [];
           saveDB(); closeModal(); showSetup();
