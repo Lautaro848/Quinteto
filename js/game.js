@@ -73,18 +73,24 @@ function renderGameScreen() {
   const root = $("#screen");
   root.innerHTML = "";
 
+  const layout = el("div", { class: "game-layout" });
+  const main = el("div", { class: "game-main" });
+  const side = el("div", { class: "game-side" });
+  layout.append(main, side);
+  root.append(layout);
+
   const sb = el("div", { id: "scoreboard" });
   renderScoreboardInto(sb, m);
-  root.append(sb);
+  main.append(sb);
 
   /* dirección de ataque */
   const dir = el("div", { class: "dir-bar" });
   renderDirBar(dir, m);
-  root.append(dir);
+  main.append(dir);
 
   /* banca A / cancha / banca B */
   const stats = computeStats(m);
-  root.append(benchRow(m, "A", stats));
+  main.append(benchRow(m, "A", stats));
 
   const wrap = el("div", { class: "court-wrap" });
   const svg = createCourtSVG({ onTap: (x, y, e) => onCourtTap(m, x, y, e, wrap) });
@@ -92,17 +98,17 @@ function renderGameScreen() {
   drawAttackArrows(svg, m, m.quarter);
   renderLiveShots(svg, m);
   wrap.append(svg);
-  root.append(wrap);
+  main.append(wrap);
 
-  root.append(benchRow(m, "B", stats));
+  main.append(benchRow(m, "B", stats));
 
   /* barra de acciones */
   const bar = el("div", { id: "action-bar-wrap" });
   renderActionBar(bar, m);
-  root.append(bar);
+  side.append(bar);
 
   /* fin de cuarto / partido */
-  if (m.clockSec <= 0 && m.status === "live") root.append(quarterEndCard(m));
+  if (m.clockSec <= 0 && m.status === "live") side.append(quarterEndCard(m));
 }
 
 /* ---- marcador ---- */
@@ -110,12 +116,25 @@ function renderScoreboardInto(sb, m) {
   const s = computeStats(m);
   sb.innerHTML = "";
 
-  const teamBox = t => el("div", { class: "sb-team" },
-    el("div", { class: "name" },
-      el("span", { class: "team-dot", style: { background: m.teams[t].color } }),
-      (m.teams[t].emoji ? m.teams[t].emoji + " " : "") + m.teams[t].name),
-    el("div", { class: "pts" }, String(s.score[t]))
-  );
+  const half = m.quarter <= 2 ? 1 : 2;
+  const teamBox = t => {
+    const fe = s.teamFoulsQ[m.quarter]?.[t] || 0;
+    const to = s.timeouts[t][half];
+    const box = el("div", { class: "sb-team" },
+      el("div", { class: "name" },
+        el("span", { class: "team-dot", style: { background: m.teams[t].color } }),
+        (m.teams[t].emoji ? m.teams[t].emoji + " " : "") + m.teams[t].name),
+      el("div", { class: "pts" }, String(s.score[t])),
+      el("div", { class: "sb-extra" },
+        el("span", { class: "fe" + (fe >= 5 ? " bonus" : "") }, "FE " + fe + (fe >= 5 ? " · BONUS" : "")),
+        m.status === "live" ? el("button", {
+          class: "btn small ghost to-btn", title: "Pedir minuto",
+          onclick: () => requestTimeout(m, t)
+        }, "⏱ " + to + "/" + timeoutLimit(half)) : el("span", null, "⏱ " + to + "/" + timeoutLimit(half))
+      )
+    );
+    return box;
+  };
 
   sb.append(el("div", { class: "sb-main" },
     teamBox("A"),
@@ -164,8 +183,24 @@ function renderDirBar(dir, m) {
   const right = sideA === "left" ? "B" : "A";
   dir.append(
     el("span", { style: { color: m.teams[left].color } }, "⬅ ataca " + m.teams[left].name),
+    m.status === "live"
+      ? el("button", { class: "btn small ghost", style: { padding: "0 8px", fontSize: ".7rem" }, title: "Invertir lado de ataque", onclick: () => flipAttackSide(m) }, "🔁")
+      : null,
     el("span", { style: { color: m.teams[right].color } }, m.teams[right].name + " ataca ➡")
   );
+}
+
+/* invierte hacia qué aro ataca cada equipo, incluso con el partido empezado */
+function flipAttackSide(m) {
+  confirmModal("Invertir lado de ataque",
+    "Invierte los aros para lo que queda del partido (la detección de dobles y triples usa el lado nuevo). Los puntos ya registrados no cambian.",
+    () => {
+      m.attackRight = !m.attackRight;
+      saveDB();
+      const sideA = attackSide(m, "A", m.quarter);
+      toast("🔁 Ahora " + m.teams.A.name + " ataca a la " + (sideA === "right" ? "derecha" : "izquierda"), { hot: true, ms: 3200 });
+      renderGameScreen();
+    }, "Invertir");
 }
 
 /* ---- bancas ---- */
@@ -179,12 +214,14 @@ function benchRow(m, t, stats) {
     const sel = App.ui.sel && App.ui.sel.team === t && App.ui.sel.pid === p.id;
     const subSel = App.ui.subIn && App.ui.subIn.team === t && App.ui.subIn.pid === p.id;
     const fouls = stats.players[t][p.id]?.foul || 0;
-    row.append(playerChip(p, m.teams[t].color, {
+    const chip = playerChip(p, m.teams[t].color, {
       onCourt: isOn,
       selected: sel || subSel,
       fouls,
       onclick: () => onChipTap(m, t, p.id, isOn)
-    }));
+    });
+    if (fouls >= 5) chip.classList.add("fouled-out");
+    row.append(chip);
   }
   return row;
 }
@@ -259,7 +296,8 @@ function renderActionBar(wrap, m) {
     bar.append(el("button", {
       class: "btn", onclick: () => {
         addEvent(m, { type, team: sel.team, playerId: sel.pid });
-        toast(ACTION_NAMES[type] + " · " + playerLabel(m, sel.team, sel.pid));
+        if (type === "foul") foulAlerts(m, sel.team, sel.pid);
+        else toast(ACTION_NAMES[type] + " · " + playerLabel(m, sel.team, sel.pid));
         renderGameScreen();
       }
     }, txt));
@@ -267,6 +305,40 @@ function renderActionBar(wrap, m) {
   bar.append(el("button", { class: "btn ok", onclick: () => quickFT(m, sel, true) }, "TL ✓"));
   bar.append(el("button", { class: "btn bad", onclick: () => quickFT(m, sel, false) }, "TL ✗"));
   wrap.append(label, bar);
+}
+
+/* avisos de reglamento al registrar una falta */
+function foulAlerts(m, team, pid) {
+  const s = computeStats(m);
+  const pf = s.players[team][pid]?.foul || 0;
+  const fe = s.teamFoulsQ[m.quarter]?.[team] || 0;
+  const opp = team === "A" ? "B" : "A";
+  if (pf >= 5) {
+    toast("🚨 5ta falta de " + playerLabel(m, team, pid) + " — debe salir", { hot: true, ms: 4000 });
+  } else if (fe === 5) {
+    toast("🔔 5ta falta de equipo de " + m.teams[team].name + " en el " + qLabel(m.quarter) +
+      ": bonificación para " + m.teams[opp].name, { hot: true, ms: 4000 });
+  } else {
+    toast("Falta · " + playerLabel(m, team, pid) + " (" + pf + "F · equipo " + fe + ")");
+  }
+}
+
+/* minuto pedido */
+function requestTimeout(m, team) {
+  if (m.status !== "live") return;
+  const s = computeStats(m);
+  const half = m.quarter <= 2 ? 1 : 2;
+  const used = s.timeouts[team][half];
+  const lim = timeoutLimit(half);
+  if (used >= lim) {
+    toast("⚠️ " + m.teams[team].name + " ya usó sus " + lim + " minutos de esta mitad", { hot: true });
+    return;
+  }
+  addEvent(m, { type: "timeout", team });
+  m.running = false;
+  saveDB();
+  toast("⏱ Minuto de " + m.teams[team].name + " (" + (used + 1) + "/" + lim + ") — reloj pausado");
+  renderGameScreen();
 }
 
 function quickFT(m, sel, made) {
@@ -284,12 +356,20 @@ function onCourtTap(m, x, y, e, wrap) {
   $$(".shot-pop", wrap).forEach(n => n.remove());
 
   const side = attackSide(m, sel.team, m.quarter);
-  let pts = isThree(x, y, side) ? 3 : 2;
+  const auto3 = isThree(x, y, side);
+  let pts = auto3 ? 3 : 2;
+  const dist = distToHoop(x, y, side);
 
   const rect = wrap.getBoundingClientRect();
   const pop = el("div", { class: "shot-pop" });
   const val = el("span", { class: "val" });
-  const refreshVal = () => { val.textContent = pts + "P"; };
+  const refreshVal = () => {
+    /* muestra adentro/afuera del arco y la distancia al aro atacado */
+    const manual = pts !== (auto3 ? 3 : 2);
+    val.innerHTML = "<b>" + pts + "P</b> <small style='color:var(--muted)'>" +
+      (manual ? "corregido ↔" : (auto3 ? "afuera" : "adentro") + " del arco") +
+      " · " + dist.toFixed(1) + " m</small>";
+  };
   refreshVal();
 
   const commit = made => {
@@ -314,11 +394,18 @@ function onCourtTap(m, x, y, e, wrap) {
   wrap.append(pop);
 }
 
-/* tiros del cuarto actual sobre la cancha en vivo */
+/* tiros sobre la cancha en vivo.
+   Con un jugador seleccionado se ven SOLO sus tiros (vacía si no tiró);
+   sin selección, los de todos (atenuados los de otros cuartos). */
 function renderLiveShots(svg, m) {
-  const shots = allShots(m);
+  const sel = App.ui.sel;
+  let shots = allShots(m);
+  if (sel) shots = shots.filter(s => s.team === sel.team && s.playerId === sel.pid);
   for (const s of shots) {
-    addShotDot(svg.shotsLayer, s, m.teams[s.team].color, { dim: s.quarter !== m.quarter, r: 0.26 });
+    addShotDot(svg.shotsLayer, s, m.teams[s.team].color, {
+      dim: !sel && s.quarter !== m.quarter,
+      r: sel ? 0.32 : 0.26
+    });
   }
 }
 
@@ -336,6 +423,7 @@ function gameMenu(m) {
   body.append(
     el("button", { class: "btn big", style: { marginBottom: "8px" }, onclick: () => { closeModal(); editRostersModal(m); } }, "👥 Editar planteles"),
     el("button", { class: "btn big", style: { marginBottom: "8px" }, onclick: () => { closeModal(); editClockModal(m); } }, "⏱️ Ajustar reloj / cuarto"),
+    el("button", { class: "btn big", style: { marginBottom: "8px" }, onclick: () => { closeModal(); flipAttackSide(m); } }, "🔁 Invertir lado de ataque"),
     el("button", {
       class: "btn big bad", onclick: () => {
         closeModal();
@@ -446,6 +534,7 @@ function describeEvent(m, ev) {
     case "shot": return (ev.made ? "✔ " : "✗ ") + ev.pts + "P · " + who;
     case "ft": return (ev.made ? "✔" : "✗") + " Libre · " + who;
     case "sub": return "🔄 Entra " + playerLabel(m, ev.team, ev.inId) + " por " + playerLabel(m, ev.team, ev.outId);
+    case "timeout": return "⏱ Minuto · " + m.teams[ev.team].name;
     default: return (ACTION_NAMES[ev.type] || ev.type) + " · " + who;
   }
 }

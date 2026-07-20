@@ -101,6 +101,16 @@ function confirmModal(title, msg, onOk, okLabel) {
   ]);
 }
 
+/* ---- CSV (separador ; y BOM: abre bien en Excel en español) ---- */
+function downloadCSV(name, rows) {
+  const esc = v => {
+    const s = String(v ?? "");
+    return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const text = "\uFEFF" + rows.map(r => r.map(esc).join(";")).join("\n");
+  downloadFile(name, text, "text/csv;charset=utf-8");
+}
+
 /* ---- descarga de archivos ---- */
 function downloadFile(name, content, type) {
   const blob = content instanceof Blob ? content : new Blob([content], { type: type || "application/json" });

@@ -137,6 +137,10 @@ label.fld { display: block; font-size: .8rem; color: var(--muted); margin-bottom
 .sb-partials th, .sb-partials td { padding: 2px 8px; text-align: center; color: var(--muted); }
 .sb-partials td { color: var(--text); font-weight: 600; }
 .sb-partials .tot { border-left: 1px solid var(--line); font-weight: 800; }
+.sb-extra { display: flex; align-items: center; gap: 6px; font-size: .64rem; color: var(--muted); margin-top: 2px; }
+.sb-extra .fe.bonus { color: var(--bad); font-weight: 800; }
+.sb-extra .to-btn { padding: 2px 7px; font-size: .64rem; border: 1px solid var(--line); border-radius: 999px; }
+.chip.fouled-out { opacity: .35; border-style: dashed !important; }
 .run-banner {
   margin-top: 8px; text-align: center; font-weight: 700; font-size: .85rem;
   background: rgba(232,98,44,.15); border: 1px solid var(--accent); color: var(--accent);
@@ -244,4 +248,12 @@ table.stats tr.totals td { border-top: 1px solid var(--line); font-weight: 800; 
 
 @media (min-width: 700px) {
   #screen { max-width: 860px; margin: 0 auto; width: 100%; }
+}
+
+/* ---- apaisado / tablet: cancha a la izquierda, acciones a la derecha ---- */
+@media (min-width: 980px) and (orientation: landscape) {
+  #screen { max-width: 1280px; }
+  .game-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 14px; align-items: start; }
+  .game-layout .game-side { position: sticky; top: 8px; }
+  .game-layout #action-bar .btn { flex: 1 1 calc(50% - 6px); }
 }

@@ -28,3 +28,10 @@ function initApp() {
 }
 
 document.addEventListener("DOMContentLoaded", initApp);
+
+/* PWA: la app queda instalable y funciona sin señal */
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(e => console.warn("SW no registrado", e));
+  });
+}

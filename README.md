@@ -82,7 +82,34 @@ export/import de backup en JSON desde la pantalla de inicio.
 - Historial de entrenamientos en el inicio con tiros y porcentaje de cada
   sesión.
 
-### 7. Post-partido y temporada
+### 7. App instalable (PWA) y reglamento
+- **Instalable y offline**: manifest + service worker con caché; la app abre
+  y funciona sin señal (ideal en clubes sin conexión). En el celular:
+  "Agregar a inicio" y queda con ícono propio.
+- **Alertas de reglamento**: aviso de 5ta falta personal (chip tachado),
+  faltas de equipo por cuarto con indicador de **BONUS**, y minutos
+  (timeouts) por equipo con límite por mitad (2+3) que pausan el reloj.
+- **Layout apaisado**: en tablet/pantalla ancha la cancha va a la izquierda
+  y las acciones a la derecha.
+- Vibración al registrar acciones (donde el navegador lo soporta).
+
+### 8. Análisis avanzado
+- **eFG%, posesiones estimadas, puntos por posesión y ritmo** en la
+  comparativa de equipos, más minutos pedidos.
+- **Evolución de entrenamientos**: curvas de % de campo/triples/libres por
+  jugador sesión a sesión, con filtro por ejercicio.
+- **Head-to-head**: récord y promedio a favor/en contra contra cada rival.
+- **Mover tiros**: la posición de cualquier tiro se corrige en una mini
+  cancha desde la línea de tiempo (recalcula 2P/3P automáticamente).
+
+### 9. Categorías y datos
+- **Varias categorías** (primera, juveniles…): cada equipo propio tiene su
+  temporada, récord, partidos y entrenamientos separados.
+- **Export CSV/Excel** del boxscore del partido y de la temporada
+  (separador `;` con BOM: abre directo en Excel en español).
+- **Recordatorio de backup** cuando se acumulan partidos sin exportar.
+
+### 10. Post-partido y temporada
 - **Reporte en un toque**: imagen PNG (marcador, parciales, shot chart y
   destacados) lista para el grupo de WhatsApp, PDF vía imprimir y resumen de
   texto para compartir.
@@ -103,7 +130,8 @@ export/import de backup en JSON desde la pantalla de inicio.
 | `js/analysis.js` | Boxscore, shot chart, mapa de calor, línea de tiempo |
 | `js/report.js` | Reporte, imagen para compartir, PDF |
 | `js/season.js` | Inicio, historial y promedios de temporada |
-| `js/training.js` | Modo entrenamiento: sesiones, ejercicios y sus estadísticas |
+| `js/training.js` | Modo entrenamiento: sesiones, ejercicios, evolución |
+| `sw.js` + `manifest.webmanifest` | PWA: instalación y funcionamiento offline |
 
 El diseño es *event-sourced*: cada acción del partido es un evento inmutable
 con equipo, jugador, cuarto y reloj; marcador, minutos, +/- y quintetos se

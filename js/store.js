@@ -119,7 +119,13 @@ function addEvent(match, ev) {
   ev.clock = ev.clock ?? match.clockSec;
   match.events.push(ev);
   saveDB();
+  buzz();
   return ev;
+}
+
+/* feedback táctil al registrar (donde el navegador lo soporte) */
+function buzz() {
+  if (navigator.vibrate) { try { navigator.vibrate(25); } catch (e) { } }
 }
 
 function removeEvent(match, evId) {
@@ -147,9 +153,21 @@ function lineupsAt(match, uptoSeq) {
 
 /* ---- export / import ---- */
 function exportAll() {
+  App.db.backupMark = finishedCount();
   downloadFile("quinteto-backup-" + new Date().toISOString().slice(0, 10) + ".json",
     JSON.stringify(App.db, null, 2), "application/json");
+  saveDB();
   toast("Backup exportado 📦");
+}
+
+/* partidos + entrenamientos terminados (para el recordatorio de backup) */
+function finishedCount() {
+  return App.db.matches.filter(m => m.status === "finished").length +
+    App.db.trainings.filter(t => t.status === "finished").length;
+}
+
+function pendingBackup() {
+  return finishedCount() - (App.db.backupMark || 0);
 }
 
 function importAll(file) {

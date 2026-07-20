@@ -89,11 +89,18 @@ function boxScoreTable(m, t, s) {
 
 function teamCompareCard(m, s) {
   const card = el("div", { class: "card" });
+  const elapsed = m.status === "finished" ? gameElapsedAt(m, m.quarter, 0) : gameElapsedNow(m);
+  const adv = { A: advancedTeam(s.team.A, elapsed), B: advancedTeam(s.team.B, elapsed) };
   const rows = [
     ["Puntos", t => s.team[t].pts],
     ["% Tiros de campo", t => { const f = fgLine(s.team[t]); return fmtPct(f.m, f.a); }],
+    ["eFG% (pondera el triple)", t => adv[t].efg ? Math.round(adv[t].efg * 100) + "%" : "–"],
     ["% Triples", t => fmtPct(s.team[t].p3m, s.team[t].p3a)],
     ["% Libres", t => fmtPct(s.team[t].ftm, s.team[t].fta)],
+    ["Posesiones (est.)", t => adv[t].poss > 0 ? adv[t].poss.toFixed(0) : "–"],
+    ["Puntos por posesión", t => adv[t].poss > 0 ? adv[t].ppp.toFixed(2) : "–"],
+    ["Ritmo (pos. cada 40')", t => adv[t].pace > 0 ? adv[t].pace.toFixed(0) : "–"],
+    ["Minutos pedidos", t => (s.timeouts[t][1] + s.timeouts[t][2])],
     ["Rebotes (of+def)", t => s.team[t].reb_o + s.team[t].reb_d],
     ["Asistencias", t => s.team[t].ast],
     ["Robos", t => s.team[t].rob],
@@ -278,13 +285,38 @@ function renderTimelineScreen() {
   root.append(card);
 }
 
+/* mini cancha para corregir la posición de un tiro.
+   classify(x, y) devuelve los puntos (2/3) según las reglas del contexto. */
+function shotMovePicker(ev, teamColor, classify, onMove) {
+  const box = el("div", { style: { marginTop: "10px" } });
+  box.append(el("label", { class: "fld" }, "Posición (tocá la cancha para moverlo)"));
+  const wrap = el("div", { class: "court-wrap" });
+  let pos = { x: ev.x, y: ev.y };
+  const svg = createCourtSVG({
+    onTap: (x, y) => {
+      pos = { x: +x.toFixed(2), y: +y.toFixed(2) };
+      render();
+      onMove(pos, classify(pos.x, pos.y));
+    }
+  });
+  const render = () => {
+    svg.shotsLayer.innerHTML = "";
+    addShotDot(svg.shotsLayer, { ...ev, ...pos }, teamColor, { r: 0.4 });
+  };
+  render();
+  wrap.append(svg);
+  box.append(wrap);
+  box.getPos = () => pos;
+  return box;
+}
+
 function editEventModal(m, ev) {
   const body = el("div");
   body.append(el("p", { class: "sub" }, qLabel(ev.quarter) + " " + fmtClock(ev.clock) + " · " + describeEvent(m, ev)));
 
   let playerSel = null, madeSel = null, ptsSel = null;
 
-  if (ev.type !== "sub") {
+  if (ev.type !== "sub" && ev.type !== "timeout") {
     playerSel = el("select");
     for (const p of m.teams[ev.team].players) {
       playerSel.append(el("option", { value: p.id, selected: p.id === ev.playerId ? "" : null }, "#" + p.number + " " + p.name));
@@ -298,12 +330,19 @@ function editEventModal(m, ev) {
       el("option", { value: "0", selected: !ev.made ? "" : null }, "✗ Fallado"));
     body.append(el("label", { class: "fld", style: { marginTop: "8px" } }, "Resultado"), madeSel);
   }
+  let mover = null;
   if (ev.type === "shot") {
     ptsSel = el("select");
     ptsSel.append(
       el("option", { value: "2", selected: ev.pts === 2 ? "" : null }, "2 puntos"),
       el("option", { value: "3", selected: ev.pts === 3 ? "" : null }, "3 puntos"));
     body.append(el("label", { class: "fld", style: { marginTop: "8px" } }, "Valor"), ptsSel);
+
+    const side = attackSide(m, ev.team, ev.quarter);
+    mover = shotMovePicker(ev, m.teams[ev.team].color,
+      (x, y) => isThree(x, y, side) ? 3 : 2,
+      (pos, pts) => { ptsSel.value = String(pts); });
+    body.append(mover);
   }
   if (ev.type === "sub") {
     body.append(el("p", { class: "sub" }, "Los cambios se corrigen borrándolos y registrando el correcto."));
@@ -316,6 +355,7 @@ function editEventModal(m, ev) {
         if (playerSel) ev.playerId = playerSel.value;
         if (madeSel) ev.made = madeSel.value === "1";
         if (ptsSel) ev.pts = +ptsSel.value;
+        if (mover) { const p = mover.getPos(); ev.x = p.x; ev.y = p.y; }
         saveDB();
         toast("Acción corregida ✔");
         setTab(App.tab);
