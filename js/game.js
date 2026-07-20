@@ -183,8 +183,24 @@ function renderDirBar(dir, m) {
   const right = sideA === "left" ? "B" : "A";
   dir.append(
     el("span", { style: { color: m.teams[left].color } }, "⬅ ataca " + m.teams[left].name),
+    m.status === "live"
+      ? el("button", { class: "btn small ghost", style: { padding: "0 8px", fontSize: ".7rem" }, title: "Invertir lado de ataque", onclick: () => flipAttackSide(m) }, "🔁")
+      : null,
     el("span", { style: { color: m.teams[right].color } }, m.teams[right].name + " ataca ➡")
   );
+}
+
+/* invierte hacia qué aro ataca cada equipo, incluso con el partido empezado */
+function flipAttackSide(m) {
+  confirmModal("Invertir lado de ataque",
+    "Invierte los aros para lo que queda del partido (la detección de dobles y triples usa el lado nuevo). Los puntos ya registrados no cambian.",
+    () => {
+      m.attackRight = !m.attackRight;
+      saveDB();
+      const sideA = attackSide(m, "A", m.quarter);
+      toast("🔁 Ahora " + m.teams.A.name + " ataca a la " + (sideA === "right" ? "derecha" : "izquierda"), { hot: true, ms: 3200 });
+      renderGameScreen();
+    }, "Invertir");
 }
 
 /* ---- bancas ---- */
@@ -407,6 +423,7 @@ function gameMenu(m) {
   body.append(
     el("button", { class: "btn big", style: { marginBottom: "8px" }, onclick: () => { closeModal(); editRostersModal(m); } }, "👥 Editar planteles"),
     el("button", { class: "btn big", style: { marginBottom: "8px" }, onclick: () => { closeModal(); editClockModal(m); } }, "⏱️ Ajustar reloj / cuarto"),
+    el("button", { class: "btn big", style: { marginBottom: "8px" }, onclick: () => { closeModal(); flipAttackSide(m); } }, "🔁 Invertir lado de ataque"),
     el("button", {
       class: "btn big bad", onclick: () => {
         closeModal();
