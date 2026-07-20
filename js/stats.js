@@ -41,6 +41,11 @@ function computeStats(match) {
   const events = match.events;   // ya están en orden de seq
   let lastScorer = null, runPts = 0;
 
+  /* faltas de equipo por cuarto y minutos pedidos por mitad */
+  const teamFoulsQ = {};
+  const timeouts = { A: { 1: 0, 2: 0 }, B: { 1: 0, 2: 0 } };
+  const halfOf = q => q <= 2 ? 1 : 2;
+
   for (const ev of events) {
     const t = ev.team, opp = t === "A" ? "B" : "A";
     const gt = gameElapsedAt(match, ev.quarter, ev.clock);
@@ -53,6 +58,11 @@ function computeStats(match) {
       }
       on[t].add(ev.inId);
       lastIn[ev.inId] = gt;
+      continue;
+    }
+
+    if (ev.type === "timeout") {
+      timeouts[t][halfOf(ev.quarter)]++;
       continue;
     }
 
@@ -73,7 +83,11 @@ function computeStats(match) {
       case "tap": l.tap++; break;
       case "reb_o": l.reb_o++; break;
       case "reb_d": l.reb_d++; break;
-      case "foul": l.foul++; break;
+      case "foul":
+        l.foul++;
+        if (!teamFoulsQ[ev.quarter]) teamFoulsQ[ev.quarter] = { A: 0, B: 0 };
+        teamFoulsQ[ev.quarter][t]++;
+        break;
     }
 
     if (pts > 0) {
@@ -115,7 +129,21 @@ function computeStats(match) {
   const run = (runPts >= 6 && match.status !== "finished")
     ? { team: lastScorer, pts: runPts } : null;
 
-  return { players, team, score, partials: partialList, run };
+  return { players, team, score, partials: partialList, run, teamFoulsQ, timeouts };
+}
+
+/* límite de minutos por mitad (FIBA: 2 en la primera, 3 en la segunda) */
+function timeoutLimit(half) { return half === 1 ? 2 : 3; }
+
+/* estadísticas avanzadas de un equipo a partir de su línea total */
+function advancedTeam(tot, elapsedSec) {
+  const fga = tot.p2a + tot.p3a;
+  const fgm = tot.p2m + tot.p3m;
+  const efg = fga ? (fgm + 0.5 * tot.p3m) / fga : 0;
+  const poss = fga - tot.reb_o + tot.per + 0.44 * tot.fta;
+  const ppp = poss > 0 ? tot.pts / poss : 0;
+  const pace = elapsedSec > 0 ? poss * (40 * 60) / elapsedSec : 0;
+  return { efg, poss, ppp, pace };
 }
 
 /* valoración PIR (simplificada a lo que se registra) */

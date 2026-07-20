@@ -32,7 +32,8 @@ function renderReportScreen() {
   root.append(el("div", { class: "row wrap no-print", style: { marginBottom: "12px" } },
     el("button", { class: "btn primary grow", onclick: () => downloadReportImage(m) }, "🖼️ Imagen p/ WhatsApp"),
     el("button", { class: "btn grow", onclick: () => window.print() }, "🖨️ PDF / Imprimir"),
-    el("button", { class: "btn grow", onclick: () => shareSummary(m) }, "📤 Compartir texto")
+    el("button", { class: "btn grow", onclick: () => shareSummary(m) }, "📤 Compartir texto"),
+    el("button", { class: "btn grow", onclick: () => exportBoxscoreCSV(m, s) }, "📄 CSV / Excel")
   ));
 
   /* destacados */
@@ -69,6 +70,27 @@ function renderReportScreen() {
       onclick: () => confirmModal("Finalizar partido", "¿Dar por terminado el partido?", () => finishMatch(m), "Finalizar")
     }, "🏁 Finalizar partido"));
   }
+}
+
+/* boxscore de los dos equipos en CSV (abre en Excel/Sheets) */
+function exportBoxscoreCSV(m, s) {
+  const rows = [[m.teams.A.name + " " + s.score.A + " - " + s.score.B + " " + m.teams.B.name, fmtDate(m.date)]];
+  for (const t of ["A", "B"]) {
+    rows.push([]);
+    rows.push([m.teams[t].name]);
+    rows.push(["Jugador", "MIN", "PTS", "2PM", "2PA", "3PM", "3PA", "TLM", "TLA", "RO", "RD", "AST", "ROB", "PÉR", "TAP", "FP", "+/-", "PIR"]);
+    const players = [...m.teams[t].players].sort((a, b) => (s.players[t][b.id]?.pts || 0) - (s.players[t][a.id]?.pts || 0));
+    for (const p of players) {
+      const l = s.players[t][p.id] || blankLine();
+      rows.push(["#" + p.number + " " + p.name, fmtClock(l.secs), l.pts, l.p2m, l.p2a, l.p3m, l.p3a,
+        l.ftm, l.fta, l.reb_o, l.reb_d, l.ast, l.rob, l.per, l.tap, l.foul, l.plusminus, pir(l)]);
+    }
+    const tot = s.team[t];
+    rows.push(["TOTAL", "", tot.pts, tot.p2m, tot.p2a, tot.p3m, tot.p3a, tot.ftm, tot.fta,
+      tot.reb_o, tot.reb_d, tot.ast, tot.rob, tot.per, tot.tap, tot.foul, "", ""]);
+  }
+  downloadCSV("quinteto-" + m.teams.A.name + "-vs-" + m.teams.B.name + ".csv", rows);
+  toast("Boxscore exportado 📄");
 }
 
 /* mejores actuaciones tipo "Deker: 23 pts, 71% de campo" */

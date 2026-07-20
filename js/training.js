@@ -14,6 +14,7 @@ function newTraining() {
   const s = {
     id: uid(),
     date: Date.now(),
+    teamId: my.id,                 // categoría a la que pertenece la sesión
     status: "live",                // live | finished
     team: {
       name: my.name, color: my.color, emoji: my.emoji || "",
@@ -44,6 +45,7 @@ function addTEvent(s, ev) {
   ev.drillId = s.curDrill;
   s.events.push(ev);
   saveDB();
+  buzz();
   return ev;
 }
 
@@ -110,6 +112,11 @@ function renderTrainingCourt() {
   const s = curTraining();
   const root = $("#screen");
   root.innerHTML = "";
+  const layout = el("div", { class: "game-layout" });
+  const main = el("div", { class: "game-main" });
+  const side = el("div", { class: "game-side" });
+  layout.append(main, side);
+  root.append(layout);
 
   /* cabecera: cronómetro + controles */
   const head = el("div", { id: "scoreboard" });
@@ -154,10 +161,10 @@ function renderTrainingCourt() {
       }, "🏁")
     ));
   }
-  root.append(head);
+  main.append(head);
 
   /* ejercicios */
-  root.append(drillBar(s, () => renderTrainingCourt()));
+  main.append(drillBar(s, () => renderTrainingCourt()));
 
   /* jugadores */
   const row = el("div", { class: "bench" });
@@ -173,7 +180,7 @@ function renderTrainingCourt() {
       }
     }));
   }
-  root.append(row);
+  main.append(row);
 
   /* cancha */
   const wrap = el("div", { class: "court-wrap" });
@@ -189,12 +196,12 @@ function renderTrainingCourt() {
     });
   }
   wrap.append(svg);
-  root.append(wrap);
+  main.append(wrap);
 
   /* acciones rápidas */
   const bar = el("div");
   renderTrainingActionBar(bar, s);
-  root.append(bar);
+  side.append(bar);
 }
 
 function drillBar(s, rerender) {
@@ -530,12 +537,18 @@ function editTEventModal(s, ev) {
       el("option", { value: "0", selected: !ev.made ? "" : null }, "✗ Fallado"));
     body.append(el("label", { class: "fld", style: { marginTop: "8px" } }, "Resultado"), madeSel);
   }
+  let mover = null;
   if (ev.type === "shot") {
     ptsSel = el("select");
     ptsSel.append(
       el("option", { value: "2", selected: ev.pts === 2 ? "" : null }, "2 puntos"),
       el("option", { value: "3", selected: ev.pts === 3 ? "" : null }, "3 puntos"));
     body.append(el("label", { class: "fld", style: { marginTop: "8px" } }, "Valor"), ptsSel);
+
+    mover = shotMovePicker(ev, s.team.color,
+      (x, y) => isThree(x, y, nearestSide(x)) ? 3 : 2,
+      (pos, pts) => { ptsSel.value = String(pts); });
+    body.append(mover);
   }
   const drillSel = el("select");
   drillSel.append(el("option", { value: "", selected: !ev.drillId ? "" : null }, "Libre"));
@@ -551,6 +564,7 @@ function editTEventModal(s, ev) {
         ev.playerId = playerSel.value;
         if (madeSel) ev.made = madeSel.value === "1";
         if (ptsSel) ev.pts = +ptsSel.value;
+        if (mover) { const p = mover.getPos(); ev.x = p.x; ev.y = p.y; }
         ev.drillId = drillSel.value || null;
         saveDB();
         toast("Acción corregida ✔");
@@ -634,6 +648,125 @@ function renderTrainingSummary() {
       }, "Finalizar")
     }, "🏁 Finalizar entrenamiento"));
   }
+}
+
+/* ========== evolución entre sesiones ==========
+   Curvas de % de campo, triples y libres de cada jugador a través de
+   los entrenamientos finalizados, con filtro por ejercicio (por nombre). */
+function trainingsOfActiveTeam() {
+  return App.db.trainings.filter(s => !s.teamId || s.teamId === App.db.myTeamId);
+}
+
+function showTrainingEvolution() {
+  App.screen = "trevolution";
+  App.matchId = null;
+  App.trainingId = null;
+  $("#tabbar").classList.add("hidden");
+  $("#topbar-info").textContent = "Evolución";
+  const root = $("#screen");
+  root.innerHTML = "";
+
+  const sessions = trainingsOfActiveTeam()
+    .filter(s => s.status === "finished")
+    .sort((a, b) => a.date - b.date);
+
+  root.append(el("h1", null, "Evolución de entrenamientos"));
+  root.append(el("p", { class: "sub" }, "Porcentajes de cada jugador sesión a sesión, para ver si lo que practican rinde."));
+
+  if (sessions.length < 2) {
+    root.append(el("div", { class: "card sub" },
+      "Necesitás al menos 2 entrenamientos finalizados para ver la evolución (llevás " + sessions.length + ")."));
+    root.append(el("button", { class: "btn ghost big", onclick: showHome }, "Volver"));
+    return;
+  }
+
+  /* filtro por ejercicio (por nombre, uniendo sesiones) */
+  const f = App.ui.evoFilter = App.ui.evoFilter || { drill: null };
+  const drillNames = [...new Set(sessions.flatMap(s => s.drills.map(d => d.name)))];
+  if (drillNames.length) {
+    const bar = el("div", { class: "filters" });
+    bar.append(el("button", { class: "btn small" + (!f.drill ? " active" : ""), onclick: () => { f.drill = null; showTrainingEvolution(); } }, "Todo"));
+    for (const name of drillNames) {
+      bar.append(el("button", {
+        class: "btn small" + (f.drill === name ? " active" : ""),
+        onclick: () => { f.drill = f.drill === name ? null : name; showTrainingEvolution(); }
+      }, name));
+    }
+    root.append(bar);
+  }
+
+  /* series por jugador (clave número+nombre para sobrevivir cambios de plantel) */
+  const perPlayer = {};   // key -> {number, name, fg: [], p3: [], ft: []}
+  const teamSeries = { fg: [], p3: [], ft: [] };
+
+  for (const s of sessions) {
+    const drillIds = f.drill ? s.drills.filter(d => d.name === f.drill).map(d => d.id) : null;
+    const st = drillIds
+      ? sumDrillStats(s, drillIds)
+      : trainingStats(s, {});
+    const tf = fgLine(st.total);
+    teamSeries.fg.push(tf.a ? Math.round(tf.m / tf.a * 100) : null);
+    teamSeries.p3.push(st.total.p3a ? Math.round(st.total.p3m / st.total.p3a * 100) : null);
+    teamSeries.ft.push(st.total.fta ? Math.round(st.total.ftm / st.total.fta * 100) : null);
+    for (const p of s.team.players) {
+      const l = st.lines[p.id];
+      if (!l) continue;
+      const key = p.number + "·" + p.name.toLowerCase();
+      if (!perPlayer[key]) perPlayer[key] = { number: p.number, name: p.name, fg: [], p3: [], ft: [] };
+      const fgl = fgLine(l);
+      perPlayer[key].fg.push(fgl.a ? Math.round(fgl.m / fgl.a * 100) : null);
+      perPlayer[key].p3.push(l.p3a ? Math.round(l.p3m / l.p3a * 100) : null);
+      perPlayer[key].ft.push(l.fta ? Math.round(l.ftm / l.fta * 100) : null);
+    }
+  }
+
+  const evoCell = serie => {
+    const vals = serie.filter(v => v !== null);
+    if (!vals.length) return el("td", null, "–");
+    const last = vals[vals.length - 1];
+    const prev = vals.length > 1 ? vals[vals.length - 2] : last;
+    const arrow = last > prev ? " ↗" : last < prev ? " ↘" : "";
+    return el("td", null,
+      el("div", null, el("b", { style: { color: heatColor(last / 100) } }, last + "%" + arrow)),
+      sparkline(vals));
+  };
+
+  root.append(el("h2", null, "Equipo" + (f.drill ? " · " + f.drill : "")));
+  const teamTbl = el("table", { class: "stats" });
+  teamTbl.append(el("tr", null, ["", "Campo", "Triples", "Libres"].map(h => el("th", null, h))));
+  teamTbl.append(el("tr", null, el("td", null, sessions.length + " sesiones"),
+    evoCell(teamSeries.fg), evoCell(teamSeries.p3), evoCell(teamSeries.ft)));
+  root.append(el("div", { class: "tbl-wrap" }, teamTbl));
+
+  root.append(el("h2", null, "Por jugador"));
+  const tbl = el("table", { class: "stats" });
+  tbl.append(el("tr", null, ["Jugador", "Campo", "Triples", "Libres"].map(h => el("th", null, h))));
+  const players = Object.values(perPlayer)
+    .filter(p => p.fg.some(v => v !== null) || p.ft.some(v => v !== null))
+    .sort((a, b) => +a.number - +b.number);
+  for (const p of players) {
+    tbl.append(el("tr", null,
+      el("td", null, "#" + p.number + " " + p.name),
+      evoCell(p.fg), evoCell(p.p3), evoCell(p.ft)));
+  }
+  root.append(el("div", { class: "tbl-wrap" }, tbl));
+
+  root.append(el("button", { class: "btn ghost big", style: { marginTop: "12px" }, onclick: showHome }, "Volver"));
+}
+
+/* stats sumando varios ejercicios (mismo nombre en la sesión) */
+function sumDrillStats(s, drillIds) {
+  const parts = drillIds.map(id => trainingStats(s, { drill: id }));
+  const out = { lines: {}, total: blankLine() };
+  for (const p of s.team.players) out.lines[p.id] = blankLine();
+  for (const part of parts) {
+    for (const [pid, l] of Object.entries(part.lines)) {
+      if (!out.lines[pid]) out.lines[pid] = blankLine();
+      for (const k of Object.keys(l)) out.lines[pid][k] += l[k];
+    }
+    for (const k of Object.keys(part.total)) out.total[k] += part.total[k];
+  }
+  return out;
 }
 
 function shareTrainingSummary(s) {
