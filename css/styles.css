@@ -85,6 +85,7 @@ label.fld { display: block; font-size: .8rem; color: var(--muted); margin-bottom
   background: var(--bg3); border: 1px solid var(--line); color: var(--muted);
 }
 .emoji-btn.active { border-color: var(--accent); background: rgba(232,98,44,.16); color: var(--text); }
+.team-logo { border-radius: 50%; object-fit: cover; vertical-align: middle; flex: none; background: #fff; }
 
 /* ---- tab bar ---- */
 #tabbar {

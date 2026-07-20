@@ -123,7 +123,7 @@ function renderScoreboardInto(sb, m) {
     const box = el("div", { class: "sb-team" },
       el("div", { class: "name" },
         el("span", { class: "team-dot", style: { background: m.teams[t].color } }),
-        (m.teams[t].emoji ? m.teams[t].emoji + " " : "") + m.teams[t].name),
+        teamMark(m.teams[t], 18), m.teams[t].name),
       el("div", { class: "pts" }, String(s.score[t])),
       el("div", { class: "sb-extra" },
         el("span", { class: "fe" + (fe >= 5 ? " bonus" : "") }, "FE " + fe + (fe >= 5 ? " · BONUS" : "")),

@@ -101,6 +101,37 @@ function confirmModal(title, msg, onOk, okLabel) {
   ]);
 }
 
+/* ---- imágenes: logo del equipo ----
+   Recorta cuadrado y achica a `size` px para que entre en localStorage. */
+function resizeImageFile(file, size, cb) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const cv = document.createElement("canvas");
+      cv.width = cv.height = size;
+      const ctx = cv.getContext("2d");
+      const s = Math.min(img.width, img.height);
+      ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+      cb(cv.toDataURL("image/png"));
+    };
+    img.onerror = () => cb(null);
+    img.src = reader.result;
+  };
+  reader.onerror = () => cb(null);
+  reader.readAsDataURL(file);
+}
+
+function loadImg(src) {
+  return new Promise(res => {
+    if (!src) return res(null);
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = () => res(null);
+    i.src = src;
+  });
+}
+
 /* ---- CSV (separador ; y BOM: abre bien en Excel en español) ---- */
 function downloadCSV(name, rows) {
   const esc = v => {
