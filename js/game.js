@@ -340,12 +340,20 @@ function onCourtTap(m, x, y, e, wrap) {
   $$(".shot-pop", wrap).forEach(n => n.remove());
 
   const side = attackSide(m, sel.team, m.quarter);
-  let pts = isThree(x, y, side) ? 3 : 2;
+  const auto3 = isThree(x, y, side);
+  let pts = auto3 ? 3 : 2;
+  const dist = distToHoop(x, y, side);
 
   const rect = wrap.getBoundingClientRect();
   const pop = el("div", { class: "shot-pop" });
   const val = el("span", { class: "val" });
-  const refreshVal = () => { val.textContent = pts + "P"; };
+  const refreshVal = () => {
+    /* muestra adentro/afuera del arco y la distancia al aro atacado */
+    const manual = pts !== (auto3 ? 3 : 2);
+    val.innerHTML = "<b>" + pts + "P</b> <small style='color:var(--muted)'>" +
+      (manual ? "corregido ↔" : (auto3 ? "afuera" : "adentro") + " del arco") +
+      " · " + dist.toFixed(1) + " m</small>";
+  };
   refreshVal();
 
   const commit = made => {
@@ -370,11 +378,18 @@ function onCourtTap(m, x, y, e, wrap) {
   wrap.append(pop);
 }
 
-/* tiros del cuarto actual sobre la cancha en vivo */
+/* tiros sobre la cancha en vivo.
+   Con un jugador seleccionado se ven SOLO sus tiros (vacía si no tiró);
+   sin selección, los de todos (atenuados los de otros cuartos). */
 function renderLiveShots(svg, m) {
-  const shots = allShots(m);
+  const sel = App.ui.sel;
+  let shots = allShots(m);
+  if (sel) shots = shots.filter(s => s.team === sel.team && s.playerId === sel.pid);
   for (const s of shots) {
-    addShotDot(svg.shotsLayer, s, m.teams[s.team].color, { dim: s.quarter !== m.quarter, r: 0.26 });
+    addShotDot(svg.shotsLayer, s, m.teams[s.team].color, {
+      dim: !sel && s.quarter !== m.quarter,
+      r: sel ? 0.32 : 0.26
+    });
   }
 }
 

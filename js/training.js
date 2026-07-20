@@ -190,9 +190,13 @@ function renderTrainingCourt() {
     ring.setAttribute("stroke", s.team.color);
     ring.setAttribute("stroke-width", 0.16);
   }
-  for (const shot of allTrainingShots(s)) {
+  /* con un jugador seleccionado, la cancha muestra solo sus tiros */
+  let liveShots = allTrainingShots(s);
+  if (App.ui.sel) liveShots = liveShots.filter(sh => sh.playerId === App.ui.sel.pid);
+  for (const shot of liveShots) {
     addShotDot(svg.shotsLayer, shot, s.team.color, {
-      dim: s.curDrill && shot.drillId !== s.curDrill, r: 0.26
+      dim: !App.ui.sel && s.curDrill && shot.drillId !== s.curDrill,
+      r: App.ui.sel ? 0.32 : 0.26
     });
   }
   wrap.append(svg);
@@ -294,12 +298,19 @@ function onTrainingCourtTap(s, x, y, e, wrap) {
 
   $$(".shot-pop", wrap).forEach(n => n.remove());
   const side = nearestSide(x);
-  let pts = isThree(x, y, side) ? 3 : 2;
+  const auto3 = isThree(x, y, side);
+  let pts = auto3 ? 3 : 2;
+  const dist = distToHoop(x, y, side);
 
   const rect = wrap.getBoundingClientRect();
   const pop = el("div", { class: "shot-pop" });
   const val = el("span", { class: "val" });
-  const refreshVal = () => { val.textContent = pts + "P"; };
+  const refreshVal = () => {
+    const manual = pts !== (auto3 ? 3 : 2);
+    val.innerHTML = "<b>" + pts + "P</b> <small style='color:var(--muted)'>" +
+      (manual ? "corregido ↔" : (auto3 ? "afuera" : "adentro") + " del arco") +
+      " · " + dist.toFixed(1) + " m</small>";
+  };
   refreshVal();
 
   const p = s.team.players.find(pl => pl.id === sel.pid);
