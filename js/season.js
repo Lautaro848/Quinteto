@@ -35,20 +35,18 @@ function showHome() {
   }
   const setup = myMatches.find(x => x.status === "setup");
 
-  /* mi equipo / categorías */
+  /* mis equipos / categorías */
   if (my) {
-    root.append(el("h2", null, "Mi equipo"));
+    root.append(el("h2", null, App.db.savedTeams.length > 1 ? "Mis equipos" : "Mi equipo"));
     root.append(el("div", { class: "card row" },
       el("span", { class: "team-dot", style: { background: my.color, width: "14px", height: "14px" } }),
       el("div", { class: "grow" },
-        el("b", null, teamMark(my, 24), " ", my.name),
+        el("b", null, teamMark(my, 24), " ", my.name, catBadge(my)),
         el("div", { class: "sub", style: { margin: 0 } }, my.players.length + " jugadores" +
-          (App.db.savedTeams.length > 1 ? " · " + App.db.savedTeams.length + " categorías" : ""))),
-      el("button", { class: "btn small", onclick: () => showMyTeam() }, "✎"),
-      App.db.savedTeams.length > 1
-        ? el("button", { class: "btn small", title: "Cambiar de categoría", onclick: pickCategoryModal }, "⇄")
-        : null,
-      el("button", { class: "btn small", title: "Nueva categoría", onclick: createCategory }, "＋")
+          (App.db.savedTeams.length > 1 ? " · " + App.db.savedTeams.length + " equipos guardados" : ""))),
+      el("button", { class: "btn small", title: "Editar este equipo", onclick: () => showMyTeam() }, "✎"),
+      el("button", { class: "btn small", title: "Mis equipos y categorías", onclick: pickCategoryModal }, "⇄"),
+      el("button", { class: "btn small", title: "Nuevo equipo / categoría", onclick: createCategory }, "＋")
     ));
 
     root.append(el("button", {
@@ -58,6 +56,7 @@ function showHome() {
         /* tu equipo se carga solo; en la configuración solo creás al rival */
         const m = newMatch();
         m.teams.A.name = my.name;
+        m.teams.A.category = my.category || "";
         m.teams.A.color = my.color;
         m.teams.A.emoji = my.emoji || "";
         m.teams.A.logo = my.logo || null;
@@ -100,7 +99,7 @@ function showHome() {
       const s = computeStats(match);
       if (s.score.A > s.score.B) w++; else if (s.score.A < s.score.B) l++;
     }
-    root.append(el("h2", null, "Temporada" + (my ? " · " + my.name : "")));
+    root.append(el("h2", null, "Temporada" + (my ? " · " + teamFullName(my) : "")));
     root.append(el("div", { class: "card row", style: { justifyContent: "space-around", textAlign: "center" } },
       el("div", null, el("div", { class: "hero-score", style: { fontSize: "1.6rem", color: "var(--ok)" } }, String(w)), el("div", { class: "sub", style: { margin: 0 } }, "Ganados")),
       el("div", null, el("div", { class: "hero-score", style: { fontSize: "1.6rem", color: "var(--bad)" } }, String(l)), el("div", { class: "sub", style: { margin: 0 } }, "Perdidos")),
@@ -185,41 +184,71 @@ function showHome() {
     "Todo se guarda automáticamente en este dispositivo."));
 }
 
-/* ---- categorías (varios equipos propios) ---- */
+/* ---- varios equipos propios y categorías (U13, U15, Primera…) ---- */
 function createCategory() {
-  const team = { id: uid(), name: "", color: "#e8622c", emoji: "", players: [] };
+  const team = { id: uid(), name: "", category: "", color: "#e8622c", emoji: "", logo: null, players: [] };
   App.db.savedTeams.push(team);
   App.db.myTeamId = team.id;
   saveDB();
   showMyTeam();
-  toast("Nueva categoría: completá nombre y plantel");
+  toast("Nuevo equipo: completá nombre, categoría y plantel");
+}
+
+/* récord de un equipo propio (solo partidos suyos) */
+function teamRecord(teamId) {
+  let w = 0, l = 0, g = 0;
+  for (const m of App.db.matches) {
+    if (m.status !== "finished" || m.teams.A.savedTeamId !== teamId) continue;
+    const s = computeStats(m);
+    g++;
+    if (s.score.A > s.score.B) w++; else if (s.score.A < s.score.B) l++;
+  }
+  return { g, w, l };
 }
 
 function pickCategoryModal() {
   const body = el("div");
+  body.append(el("p", { class: "sub" },
+    "Cada equipo tiene su plantel, temporada, partidos y entrenamientos separados. Con ＋ creás otro (ej: el mismo club en U13 y U15)."));
   for (const t of App.db.savedTeams) {
     const active = t.id === App.db.myTeamId;
+    const rec = teamRecord(t.id);
+    const trainings = App.db.trainings.filter(s => s.teamId === t.id).length;
     body.append(el("div", { class: "list-item" },
       el("span", { class: "team-dot", style: { background: t.color } }),
       el("div", { class: "grow" },
-        el("b", null, teamMark(t, 20), " ", t.name || "Sin nombre"),
-        el("div", { class: "sub", style: { margin: 0 } }, t.players.length + " jugadores" + (active ? " · Activa" : ""))),
+        el("b", null, teamMark(t, 20), " ", t.name || "Sin nombre", catBadge(t)),
+        el("div", { class: "sub", style: { margin: 0 } },
+          t.players.length + " jugadores · " + rec.g + " PJ (" + rec.w + "G-" + rec.l + "P)" +
+          (trainings ? " · " + trainings + " entren." : "") +
+          (active ? " · ✓ Activo" : ""))),
       active
         ? el("b", { style: { color: "var(--ok)" } }, "✓")
         : el("button", {
           class: "btn small primary",
-          onclick: () => { App.db.myTeamId = t.id; saveDB(); closeModal(); showHome(); toast("Categoría activa: " + t.name); }
+          onclick: () => {
+            App.db.myTeamId = t.id;
+            saveDB(); closeModal(); showHome();
+            toast("Equipo activo: " + teamFullName(t));
+          }
         }, "Usar"),
+      !active ? el("button", {
+        class: "btn small", title: "Editar",
+        onclick: () => { App.db.myTeamId = t.id; saveDB(); closeModal(); showMyTeam(); }
+      }, "✎") : null,
       App.db.savedTeams.length > 1 && !active ? el("button", {
         class: "btn small bad",
-        onclick: () => confirmModal("Borrar categoría", "¿Borrar \"" + t.name + "\"? Sus partidos quedan en el historial.", () => {
+        onclick: () => confirmModal("Borrar equipo", "¿Borrar \"" + teamFullName(t) + "\"? Sus partidos quedan en el historial.", () => {
           App.db.savedTeams = App.db.savedTeams.filter(x => x.id !== t.id);
           saveDB(); closeModal(); showHome();
         }, "Borrar")
       }, "✕") : null
     ));
   }
-  openModal("Categorías", body, [{ label: "Cerrar", kind: "ghost" }]);
+  openModal("Mis equipos", body, [
+    { label: "＋ Nuevo equipo", kind: "primary", onclick: () => { createCategory(); } },
+    { label: "Cerrar", kind: "ghost" }
+  ]);
 }
 
 /* ---- head-to-head contra cada rival ---- */
