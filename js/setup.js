@@ -4,6 +4,24 @@
 /* opciones de personalización */
 const PRESET_COLORS = ["#e8622c", "#3b82f6", "#38bdf8", "#22c55e", "#ef4444", "#a855f7", "#eab308", "#14b8a6", "#f472b6", "#f8fafc", "#111827"];
 const TEAM_EMOJIS = ["🏀", "🦁", "🐯", "🦅", "🐺", "🐂", "🦈", "⚡", "🔥", "⭐", "🛡️", "👑"];
+const TEAM_CATEGORIES = ["Mini", "U13", "U15", "U17", "U19", "U21", "Primera", "Maxi"];
+const TEAM_GENDERS = [["M", "Masculino"], ["F", "Femenino"]];
+const GENDER_SHORT = { M: "Masc.", F: "Fem." };
+
+/* nombre + categoría + rama para mostrar: "Leones · U15 · Fem." */
+function teamFullName(team) {
+  return team.name +
+    (team.category ? " · " + team.category : "") +
+    (GENDER_SHORT[team.gender] ? " · " + GENDER_SHORT[team.gender] : "");
+}
+
+/* pastillas de categoría y rama */
+function catBadge(team) {
+  const frag = document.createDocumentFragment();
+  if (team.category) frag.append(el("span", { class: "cat-badge" }, team.category));
+  if (GENDER_SHORT[team.gender]) frag.append(el("span", { class: "cat-badge gender" }, GENDER_SHORT[team.gender]));
+  return frag.childNodes.length ? frag : null;
+}
 
 function escName(m, t) { return m.teams[t].name.trim() || (t === "A" ? "Tu equipo" : "El rival"); }
 
@@ -190,7 +208,46 @@ function showMyTeam() {
 
   const card = el("div", { class: "card" });
   card.append(...personalizationFields(team, { namePlaceholder: "Nombre de tu equipo (ej: Atlético Naranja)" }));
-  card.append(el("label", { class: "fld" }, "Plantel (número y nombre)"));
+
+  /* categoría: para tener varios equipos del mismo club (U13, U15, Primera…) */
+  const catRow = el("div", { class: "filters", style: { paddingBottom: "6px" } });
+  const catIn = el("input", {
+    type: "text", value: team.category || "", maxlength: 16,
+    placeholder: "Otra categoría (ej: Mini, Sub-23, Veteranos)",
+    oninput: e => { team.category = e.target.value.trim(); saveDB(); renderCats(); }
+  });
+  const renderCats = () => {
+    catRow.innerHTML = "";
+    for (const c of TEAM_CATEGORIES) {
+      catRow.append(el("button", {
+        class: "btn small" + (team.category === c ? " active" : ""),
+        onclick: () => {
+          team.category = team.category === c ? "" : c;
+          catIn.value = team.category;
+          saveDB(); renderCats();
+        }
+      }, c));
+    }
+  };
+  renderCats();
+  card.append(el("label", { class: "fld" }, "Categoría (opcional — podés tener varios equipos, ej: Leones U13 y Leones U15)"), catRow, catIn);
+
+  /* rama: masculino / femenino, independiente de la categoría */
+  const genRow = el("div", { class: "filters", style: { paddingBottom: "4px" } });
+  const renderGenders = () => {
+    genRow.innerHTML = "";
+    for (const [code, label] of TEAM_GENDERS) {
+      genRow.append(el("button", {
+        class: "btn small" + (team.gender === code ? " active" : ""),
+        onclick: () => { team.gender = team.gender === code ? "" : code; saveDB(); renderGenders(); }
+      }, label));
+    }
+  };
+  renderGenders();
+  card.append(el("label", { class: "fld", style: { marginTop: "10px" } },
+    "Rama (opcional — permite el mismo club y categoría en masculino y femenino)"), genRow);
+
+  card.append(el("label", { class: "fld", style: { marginTop: "12px" } }, "Plantel (número y nombre)"));
   card.append(rosterEditor(team, {}));
   root.append(card);
 
@@ -304,7 +361,7 @@ function myTeamSetupCard(m) {
   card.append(el("h2", { style: { marginTop: 0 } }, "Tu equipo"));
   card.append(el("div", { class: "row", style: { marginBottom: "6px" } },
     el("span", { class: "team-dot", style: { background: team.color, width: "14px", height: "14px" } }),
-    el("b", { class: "grow" }, teamMark(team, 22), " ", team.name || "Sin nombre"),
+    el("b", { class: "grow" }, teamMark(team, 22), " ", team.name || "Sin nombre", catBadge(team)),
     el("span", { class: "sub", style: { margin: 0 } }, team.players.length + " jugadores")
   ));
   card.append(el("p", { class: "sub", style: { marginBottom: "8px" } },

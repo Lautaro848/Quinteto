@@ -17,7 +17,8 @@ function newTraining() {
     teamId: my.id,                 // categoría a la que pertenece la sesión
     status: "live",                // live | finished
     team: {
-      name: my.name, color: my.color, emoji: my.emoji || "", logo: my.logo || null,
+      name: my.name, category: my.category || "", gender: my.gender || "", color: my.color,
+      emoji: my.emoji || "", logo: my.logo || null,
       players: JSON.parse(JSON.stringify(my.players))   // mismos ids: sirve para la evolución entre sesiones
     },
     drills: [],                    // [{id, name}] ejercicios de la sesión
@@ -124,7 +125,7 @@ function renderTrainingCourt() {
     el("div", { class: "sb-team" },
       el("div", { class: "name" },
         el("span", { class: "team-dot", style: { background: s.team.color } }),
-        teamMark(s.team, 18), s.team.name),
+        teamMark(s.team, 18), s.team.name, catBadge(s.team)),
       el("div", { class: "sub", style: { margin: 0 } }, "🏋️ Entrenamiento")),
     el("div", { class: "sb-mid" },
       el("div", { class: "sb-q" }, s.status === "finished" ? "FINALIZADO" : "SESIÓN"),
