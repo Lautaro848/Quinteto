@@ -4,16 +4,23 @@
 /* opciones de personalización */
 const PRESET_COLORS = ["#e8622c", "#3b82f6", "#38bdf8", "#22c55e", "#ef4444", "#a855f7", "#eab308", "#14b8a6", "#f472b6", "#f8fafc", "#111827"];
 const TEAM_EMOJIS = ["🏀", "🦁", "🐯", "🦅", "🐺", "🐂", "🦈", "⚡", "🔥", "⭐", "🛡️", "👑"];
-const TEAM_CATEGORIES = ["U13", "U15", "U17", "U19", "U21", "Primera", "Maxi", "Femenino"];
+const TEAM_CATEGORIES = ["Mini", "U13", "U15", "U17", "U19", "U21", "Primera", "Maxi"];
+const TEAM_GENDERS = [["M", "Masculino"], ["F", "Femenino"]];
+const GENDER_SHORT = { M: "Masc.", F: "Fem." };
 
-/* nombre + categoría para mostrar: "Leones · U15" */
+/* nombre + categoría + rama para mostrar: "Leones · U15 · Fem." */
 function teamFullName(team) {
-  return team.name + (team.category ? " · " + team.category : "");
+  return team.name +
+    (team.category ? " · " + team.category : "") +
+    (GENDER_SHORT[team.gender] ? " · " + GENDER_SHORT[team.gender] : "");
 }
 
-/* etiqueta de categoría (pastilla chica) */
+/* pastillas de categoría y rama */
 function catBadge(team) {
-  return team.category ? el("span", { class: "cat-badge" }, team.category) : null;
+  const frag = document.createDocumentFragment();
+  if (team.category) frag.append(el("span", { class: "cat-badge" }, team.category));
+  if (GENDER_SHORT[team.gender]) frag.append(el("span", { class: "cat-badge gender" }, GENDER_SHORT[team.gender]));
+  return frag.childNodes.length ? frag : null;
 }
 
 function escName(m, t) { return m.teams[t].name.trim() || (t === "A" ? "Tu equipo" : "El rival"); }
@@ -224,6 +231,21 @@ function showMyTeam() {
   };
   renderCats();
   card.append(el("label", { class: "fld" }, "Categoría (opcional — podés tener varios equipos, ej: Leones U13 y Leones U15)"), catRow, catIn);
+
+  /* rama: masculino / femenino, independiente de la categoría */
+  const genRow = el("div", { class: "filters", style: { paddingBottom: "4px" } });
+  const renderGenders = () => {
+    genRow.innerHTML = "";
+    for (const [code, label] of TEAM_GENDERS) {
+      genRow.append(el("button", {
+        class: "btn small" + (team.gender === code ? " active" : ""),
+        onclick: () => { team.gender = team.gender === code ? "" : code; saveDB(); renderGenders(); }
+      }, label));
+    }
+  };
+  renderGenders();
+  card.append(el("label", { class: "fld", style: { marginTop: "10px" } },
+    "Rama (opcional — permite el mismo club y categoría en masculino y femenino)"), genRow);
 
   card.append(el("label", { class: "fld", style: { marginTop: "12px" } }, "Plantel (número y nombre)"));
   card.append(rosterEditor(team, {}));

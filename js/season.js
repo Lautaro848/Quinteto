@@ -57,6 +57,7 @@ function showHome() {
         const m = newMatch();
         m.teams.A.name = my.name;
         m.teams.A.category = my.category || "";
+        m.teams.A.gender = my.gender || "";
         m.teams.A.color = my.color;
         m.teams.A.emoji = my.emoji || "";
         m.teams.A.logo = my.logo || null;
@@ -186,7 +187,7 @@ function showHome() {
 
 /* ---- varios equipos propios y categorías (U13, U15, Primera…) ---- */
 function createCategory() {
-  const team = { id: uid(), name: "", category: "", color: "#e8622c", emoji: "", logo: null, players: [] };
+  const team = { id: uid(), name: "", category: "", gender: "", color: "#e8622c", emoji: "", logo: null, players: [] };
   App.db.savedTeams.push(team);
   App.db.myTeamId = team.id;
   saveDB();

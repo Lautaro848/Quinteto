@@ -91,6 +91,7 @@ label.fld { display: block; font-size: .8rem; color: var(--muted); margin-bottom
   padding: 1px 8px; font-size: .62rem; margin-left: 6px; color: var(--accent);
   font-weight: 800; vertical-align: middle; white-space: nowrap;
 }
+.cat-badge.gender { color: #a78bfa; }
 
 /* ---- tab bar ---- */
 #tabbar {

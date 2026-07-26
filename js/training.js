@@ -17,7 +17,7 @@ function newTraining() {
     teamId: my.id,                 // categoría a la que pertenece la sesión
     status: "live",                // live | finished
     team: {
-      name: my.name, category: my.category || "", color: my.color,
+      name: my.name, category: my.category || "", gender: my.gender || "", color: my.color,
       emoji: my.emoji || "", logo: my.logo || null,
       players: JSON.parse(JSON.stringify(my.players))   // mismos ids: sirve para la evolución entre sesiones
     },
