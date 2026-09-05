@@ -7,19 +7,28 @@ y reportes listos para compartir.
 
 ## Cómo usarla
 
-Es una app web sin dependencias ni instalación:
+**App publicada:** https://lautarobraun.github.io/Quinteto/
+
+Se abre en el navegador del celular y se instala con *Agregar a inicio*
+(iPhone: botón compartir; Android: menú ⋮): queda con ícono propio, a
+pantalla completa y **funciona sin señal**.
+
+> La dirección depende del usuario de GitHub que publica el sitio: es
+> `https://<usuario>.github.io/Quinteto/` en minúsculas. Si se renombra la
+> cuenta, GitHub redirige el repositorio pero **no** el subdominio del
+> sitio, así que la URL vieja pasa a dar 404 y hay que repartir la nueva.
+
+Para desarrollo local (no hace falta build ni dependencias):
 
 ```bash
-# opción 1: abrir directo
-abrí index.html en el navegador (Chrome/Safari, ideal desde el celular)
-
-# opción 2: servir la carpeta
 python3 -m http.server 8000
 # → http://localhost:8000
 ```
 
 Todo se guarda automáticamente en el dispositivo (localStorage), con
-export/import de backup en JSON desde la pantalla de inicio.
+export/import de backup en JSON desde la pantalla de inicio. Los datos
+son por navegador y por dominio: cada persona tiene los suyos, y al
+cambiar de dirección conviene exportar el backup e importarlo en la nueva.
 
 ## Funcionalidades
 
